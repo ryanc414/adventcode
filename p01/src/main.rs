@@ -2,19 +2,24 @@ use std::collections::HashSet;
 use std::env;
 use std::fs;
 
-const TARGET: i64 = 2020;
+const TARGET: i32 = 2020;
 
 fn main() {
     let input = load_input();
+    let input_set: HashSet<i32> = input.iter().cloned().collect();
 
-    let result = find_multiple(input);
-    match result {
-        Some(x) => println!("result: {}", x),
-        None => println!("no result found"),
+    match find_two_multiple(&input, &input_set) {
+        Some(x) => println!("first result: {}", x),
+        None => println!("no result found for first part"),
+    }
+
+    match find_three_multiple(&input, &input_set) {
+        Some(x) => println!("second result: {}", x),
+        None => println!("no result found for second part"),
     }
 }
 
-fn load_input() -> Vec<i64> {
+fn load_input() -> Vec<i32> {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("please specify input filename");
@@ -29,21 +34,41 @@ fn load_input() -> Vec<i64> {
         .collect()
 }
 
-fn find_multiple(input: Vec<i64>) -> Option<i64> {
-    let input_set: HashSet<i64> = input.iter().cloned().collect();
-
-    for x in input {
+fn find_three_multiple(input: &Vec<i32>, input_set: &HashSet<i32>) -> Option<i64> {
+    for &x in input.iter() {
         if x > TARGET {
             continue;
         }
 
-        let y = TARGET - x;
+        let rest = TARGET - x;
 
-        // Really we should exclude x from the set in case just one instance of
-        // TARGET/2 (i.e. 1010) happens to be in the input. But we don't have
-        // to bother with the inputs given so skip for simplicity.
+        // Really we should remove x from the input vec and set before looking
+        // for matching y and z values, however we can neglect to do so for
+        // simplicity/laziness.
+        if let Some((y, z)) = find_two_sum(input, input_set, rest) {
+            return Some(x as i64 * y as i64 * z as i64);
+        }
+    }
+
+    None
+}
+
+fn find_two_multiple(input: &Vec<i32>, input_set: &HashSet<i32>) -> Option<i64> {
+    match find_two_sum(input, input_set, TARGET) {
+        Some((x, y)) => Some(x as i64 * y as i64),
+        None => None,
+    }
+}
+
+fn find_two_sum(input: &Vec<i32>, input_set: &HashSet<i32>, target: i32) -> Option<(i32, i32)> {
+    for &x in input {
+        if x > target {
+            continue;
+        }
+
+        let y = target - x;
         if input_set.contains(&y) {
-            return Some(x * y);
+            return Some((x, y));
         }
     }
 

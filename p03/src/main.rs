@@ -45,17 +45,17 @@ struct Path {
 }
 
 fn count_path_trees(input: &Vec<Vec<char>>, path: &Path) -> u64 {
-    let mut count: u64 = 0;
-    let mut col_ix: usize = 0;
-
-    for row_ix in (0..input.len()).step_by(path.down) {
-        let row = &input[row_ix];
-        if row[col_ix] == TREE {
-            count += 1;
-        }
-        col_ix = (col_ix + path.right) % row.len();
-    }
-
+    let (count, _) = input
+        .iter()
+        .step_by(path.down)
+        .fold((0, 0), |(count, col_ix), row| {
+            let next_col_ix = (col_ix + path.right) % row.len();
+            if row[col_ix] == TREE {
+                (count + 1, next_col_ix)
+            } else {
+                (count, next_col_ix)
+            }
+        });
     count
 }
 

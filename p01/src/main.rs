@@ -29,12 +29,12 @@ fn load_input() -> Vec<i32> {
 
     contents
         .split('\n')
-        .filter(|line| line.len() > 0)
+        .filter(|line| !line.is_empty())
         .map(|line| line.parse().unwrap())
         .collect()
 }
 
-fn find_three_multiple(input: &Vec<i32>, input_set: &HashSet<i32>) -> Option<i64> {
+fn find_three_multiple(input: &[i32], input_set: &HashSet<i32>) -> Option<i64> {
     for &x in input.iter() {
         if x > TARGET {
             continue;
@@ -53,14 +53,14 @@ fn find_three_multiple(input: &Vec<i32>, input_set: &HashSet<i32>) -> Option<i64
     None
 }
 
-fn find_two_multiple(input: &Vec<i32>, input_set: &HashSet<i32>) -> Option<i64> {
+fn find_two_multiple(input: &[i32], input_set: &HashSet<i32>) -> Option<i64> {
     match find_two_sum(input, input_set, TARGET) {
         Some((x, y)) => Some(x as i64 * y as i64),
         None => None,
     }
 }
 
-fn find_two_sum(input: &Vec<i32>, input_set: &HashSet<i32>, target: i32) -> Option<(i32, i32)> {
+fn find_two_sum(input: &[i32], input_set: &HashSet<i32>, target: i32) -> Option<(i32, i32)> {
     for &x in input {
         if x > target {
             continue;

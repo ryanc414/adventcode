@@ -34,7 +34,7 @@ fn load_input() -> Vec<Vec<char>> {
 
     contents
         .split('\n')
-        .filter(|line| line.len() > 0)
+        .filter(|line| !line.is_empty())
         .map(|line| line.chars().collect())
         .collect()
 }
@@ -44,7 +44,7 @@ struct Path {
     down: usize,
 }
 
-fn count_path_trees(input: &Vec<Vec<char>>, path: &Path) -> u64 {
+fn count_path_trees(input: &[Vec<char>], path: &Path) -> u64 {
     let (count, _) = input
         .iter()
         .step_by(path.down)
@@ -59,7 +59,7 @@ fn count_path_trees(input: &Vec<Vec<char>>, path: &Path) -> u64 {
     count
 }
 
-fn get_path_multiples(input: &Vec<Vec<char>>) -> u64 {
+fn get_path_multiples(input: &[Vec<char>]) -> u64 {
     PATHS
         .iter()
         .map(|path| count_path_trees(input, path))

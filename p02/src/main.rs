@@ -36,7 +36,7 @@ fn load_input() -> Vec<PasswordInput> {
 
     contents
         .split('\n')
-        .filter(|line| line.len() > 0)
+        .filter(|line| !line.is_empty())
         .map(|line| parse_line(line, &line_re))
         .collect()
 }
@@ -52,7 +52,7 @@ fn parse_line(line: &str, re: &Regex) -> PasswordInput {
     }
 }
 
-fn count_valid(input: &Vec<PasswordInput>, validate_password: fn(&PasswordInput) -> bool) -> usize {
+fn count_valid(input: &[PasswordInput], validate_password: fn(&PasswordInput) -> bool) -> usize {
     input
         .iter()
         .filter(|&pass_input| validate_password(pass_input))

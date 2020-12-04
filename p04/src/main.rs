@@ -29,7 +29,7 @@ fn load_input() -> Vec<HashMap<String, String>> {
 
     contents
         .split("\n\n")
-        .filter(|line| line.len() > 0)
+        .filter(|line| !line.is_empty())
         .map(parse_line)
         .collect()
 }
@@ -37,7 +37,7 @@ fn load_input() -> Vec<HashMap<String, String>> {
 fn parse_line(line: &str) -> HashMap<String, String> {
     line.split_ascii_whitespace()
         .map(|word| {
-            let pair: Vec<&str> = word.split(":").collect();
+            let pair: Vec<&str> = word.split(':').collect();
             if pair.len() != 2 {
                 panic!("unexpected length for pair: {}", pair.len())
             }
@@ -46,7 +46,7 @@ fn parse_line(line: &str) -> HashMap<String, String> {
         .collect()
 }
 
-fn count_valid(input: &Vec<HashMap<String, String>>) -> usize {
+fn count_valid(input: &[HashMap<String, String>]) -> usize {
     input
         .iter()
         .filter(|&passport| validate_passport(passport))
@@ -55,7 +55,7 @@ fn count_valid(input: &Vec<HashMap<String, String>>) -> usize {
 
 fn validate_passport(passport: &HashMap<String, String>) -> bool {
     REQUIRED_KEYS.iter().all(|&key| match passport.get(key) {
-        Some(val) => val.len() > 0,
+        Some(val) => !val.is_empty(),
         None => false,
     })
 }

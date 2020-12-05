@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 
-type ValidatorFn = fn(&str) -> bool;
+type ValidatorFn = Box<dyn Fn(&str) -> bool>;
 
 fn main() {
     let input = load_input();
 
-    let full_validation_rules: HashMap<&str, ValidatorFn> = [
-        ("byr", validate_birth_year as ValidatorFn),
+    let full_validation_rules: HashMap<&str, ValidatorFn> = vec![
+        ("byr", validate_birth_year as fn(&str) -> bool),
         ("iyr", validate_issue_year),
         ("eyr", validate_expiration_year),
         ("hgt", validate_height),
@@ -17,13 +17,17 @@ fn main() {
         ("ecl", validate_eye_colour),
         ("pid", validate_passport_id),
     ]
-    .iter()
-    .cloned()
+    .into_iter()
+    .map(
+        |(key, validate_fn): (&str, fn(&str) -> bool)| -> (&str, ValidatorFn) {
+            (key, Box::new(validate_fn))
+        },
+    )
     .collect();
 
     let simple_validation_rules: HashMap<&str, ValidatorFn> = full_validation_rules
         .iter()
-        .map(|(&key, _)| -> (&str, ValidatorFn) { (key, not_empty) })
+        .map(|(&key, _)| -> (&str, ValidatorFn) { (key, Box::new(|val| !val.is_empty())) })
         .collect();
 
     let count_1 = count_valid(&input, &simple_validation_rules);
@@ -31,10 +35,6 @@ fn main() {
 
     let count_2 = count_valid(&input, &full_validation_rules);
     println!("counted {} valid passports with full scheme", count_2);
-}
-
-fn not_empty(input: &str) -> bool {
-    !input.is_empty()
 }
 
 fn load_input() -> Vec<HashMap<String, String>> {

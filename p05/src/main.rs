@@ -44,38 +44,25 @@ fn parse_seat(input: &str) -> Result<Seat, String> {
         return Err(String::from("unexpected input length"));
     }
 
-    let mut it = input.chars();
-    let mut row: u8 = 0;
-
-    // Iterate over the first 7 chars. Note that the .take() method consumes
-    // the iterator, so we have to do it this way to be able to re-use the
-    // same iterator later!
-    for _ in 0..7 {
-        let c = it.next().unwrap();
-        match c {
-            'F' => row <<= 1,
-            'B' => row = (row << 1) ^ 1,
-            _ => return Err(String::from("unexpected letter in first 6 chars")),
-        };
-    }
-
-    let mut col: u8 = 0;
-
-    // Now we can consume the final 3 chars.
-    for c in it {
-        match c {
-            'L' => col <<= 1,
-            'R' => col = (col << 1) ^ 1,
-            _ => {
-                return Err(format!(
-                    "unexpected letter {} in last 3 chars of {}",
-                    c, input
-                ))
-            }
-        };
-    }
+    let input_chars: Vec<char> = input.chars().collect();
+    let row = binary_to_u8(&input_chars[0..7], 'F', 'B')?;
+    let col = binary_to_u8(&input_chars[7..10], 'L', 'R')?;
 
     Ok(Seat { row, col })
+}
+
+fn binary_to_u8(bin: &[char], zero: char, one: char) -> Result<u8, String> {
+    let mut val: u8 = 0;
+
+    for &c in bin.iter() {
+        match c {
+            _ if c == zero => val <<= 1,
+            _ if c == one => val = (val << 1) ^ 1,
+            _ => return Err(format!("unexpected letter {}", c)),
+        }
+    }
+
+    Ok(val)
 }
 
 fn find_highest_seat_id(input: &[Seat]) -> u32 {
@@ -103,6 +90,8 @@ fn find_my_seat(input: &[Seat]) -> Result<Seat, String> {
 fn generate_possible_seats(lowest_row: u8, highest_row: u8) -> HashSet<Seat> {
     let mut seats: HashSet<Seat> = HashSet::new();
 
+    // Don't include first and last rows as we know that the missing seat isn't
+    // in either of them.
     for row in (lowest_row + 1)..highest_row {
         for col in 0..8 {
             seats.insert(Seat { row, col });

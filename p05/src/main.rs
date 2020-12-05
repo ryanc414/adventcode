@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 
@@ -5,8 +6,12 @@ fn main() {
     let input = load_input();
     let highest_id = find_highest_seat_id(&input);
     println!("highest seat ID is {}", highest_id);
+
+    let my_seat = find_my_seat(&input).unwrap();
+    println!("my seat ID is {}", my_seat.id());
 }
 
+#[derive(Hash, Eq, PartialEq, Debug, Clone)]
 struct Seat {
     row: u8,
     col: u8,
@@ -75,6 +80,36 @@ fn parse_seat(input: &str) -> Result<Seat, String> {
 
 fn find_highest_seat_id(input: &[Seat]) -> u32 {
     input.iter().map(|seat| seat.id()).max().unwrap()
+}
+
+fn find_my_seat(input: &[Seat]) -> Result<Seat, String> {
+    let lowest_row = input.iter().map(|seat| seat.row).min().unwrap();
+    let highest_row = input.iter().map(|seat| seat.row).max().unwrap();
+
+    let possible_seats = generate_possible_seats(lowest_row, highest_row);
+    let input_seats: HashSet<Seat> = input.iter().cloned().collect();
+
+    let unaccounted_seats: Vec<&Seat> = possible_seats.difference(&input_seats).collect();
+    if unaccounted_seats.len() != 1 {
+        return Err(format!(
+            "unexpected number of unaccounted seats: {:?}",
+            unaccounted_seats
+        ));
+    }
+
+    Ok(unaccounted_seats[0].clone())
+}
+
+fn generate_possible_seats(lowest_row: u8, highest_row: u8) -> HashSet<Seat> {
+    let mut seats: HashSet<Seat> = HashSet::new();
+
+    for row in (lowest_row + 1)..highest_row {
+        for col in 0..8 {
+            seats.insert(Seat { row, col });
+        }
+    }
+
+    seats
 }
 
 #[cfg(test)]

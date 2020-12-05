@@ -7,6 +7,8 @@ type ValidatorFn = Box<dyn Fn(&str) -> bool>;
 
 fn main() {
     let input = load_input();
+    let hair_colour_re = Regex::new(r"^#[0-9a-f]{6}$").unwrap();
+    let passport_id_re = Regex::new(r"^\d{9}$").unwrap();
 
     let full_validation_rules: HashMap<&str, ValidatorFn> = vec![
         (
@@ -16,9 +18,9 @@ fn main() {
         ("iyr", Box::new(|val| validate_year(val, 2010, 2020))),
         ("eyr", Box::new(|val| validate_year(val, 2020, 2030))),
         ("hgt", Box::new(validate_height)),
-        ("hcl", Box::new(validate_hair_colour)),
+        ("hcl", Box::new(move |val| hair_colour_re.is_match(val))),
         ("ecl", Box::new(validate_eye_colour)),
-        ("pid", Box::new(validate_passport_id)),
+        ("pid", Box::new(move |val| passport_id_re.is_match(val))),
     ]
     .into_iter()
     .collect();
@@ -127,16 +129,6 @@ fn validate_height(input: &str) -> bool {
     }
 }
 
-fn validate_hair_colour(input: &str) -> bool {
-    let re = Regex::new(r"^#[0-9a-f]{6}$").unwrap();
-    re.is_match(input)
-}
-
 fn validate_eye_colour(input: &str) -> bool {
     matches!(input, "amb" | "blu" | "brn" | "gry" | "grn" | "hzl" | "oth")
-}
-
-fn validate_passport_id(input: &str) -> bool {
-    let re = Regex::new(r"^\d{9}$").unwrap();
-    re.is_match(input)
 }

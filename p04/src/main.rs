@@ -3,25 +3,27 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 
+type ValidatorFn = fn(&str) -> bool;
+
 fn main() {
     let input = load_input();
 
-    let full_validation_rules_raw: &[(&str, fn(&str) -> bool)] = &[
-        ("byr", validate_birth_year),
+    let full_validation_rules: HashMap<&str, ValidatorFn> = [
+        ("byr", validate_birth_year as ValidatorFn),
         ("iyr", validate_issue_year),
         ("eyr", validate_expiration_year),
         ("hgt", validate_height),
         ("hcl", validate_hair_colour),
         ("ecl", validate_eye_colour),
         ("pid", validate_passport_id),
-    ];
+    ]
+    .iter()
+    .cloned()
+    .collect();
 
-    let full_validation_rules: HashMap<&str, fn(&str) -> bool> =
-        full_validation_rules_raw.iter().cloned().collect();
-
-    let simple_validation_rules: HashMap<&str, fn(&str) -> bool> = full_validation_rules
+    let simple_validation_rules: HashMap<&str, ValidatorFn> = full_validation_rules
         .iter()
-        .map(|(&key, _)| -> (&str, fn(&str) -> bool) { (key, not_empty) })
+        .map(|(&key, _)| -> (&str, ValidatorFn) { (key, not_empty) })
         .collect();
 
     let count_1 = count_valid(&input, &simple_validation_rules);
@@ -65,7 +67,7 @@ fn parse_line(line: &str) -> HashMap<String, String> {
 
 fn count_valid(
     input: &[HashMap<String, String>],
-    validation_rules: &HashMap<&str, fn(&str) -> bool>,
+    validation_rules: &HashMap<&str, ValidatorFn>,
 ) -> usize {
     input
         .iter()
@@ -75,7 +77,7 @@ fn count_valid(
 
 fn validate_passport(
     passport: &HashMap<String, String>,
-    rules: &HashMap<&str, fn(&str) -> bool>,
+    rules: &HashMap<&str, ValidatorFn>,
 ) -> bool {
     rules
         .iter()
@@ -159,10 +161,7 @@ fn validate_hair_colour(input: &str) -> bool {
 }
 
 fn validate_eye_colour(input: &str) -> bool {
-    match input {
-        "amb" | "blu" | "brn" | "gry" | "grn" | "hzl" | "oth" => true,
-        _ => false,
-    }
+    matches!(input, "amb" | "blu" | "brn" | "gry" | "grn" | "hzl" | "oth")
 }
 
 fn validate_passport_id(input: &str) -> bool {

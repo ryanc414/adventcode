@@ -9,20 +9,18 @@ fn main() {
     let input = load_input();
 
     let full_validation_rules: HashMap<&str, ValidatorFn> = vec![
-        ("byr", validate_birth_year as fn(&str) -> bool),
-        ("iyr", validate_issue_year),
-        ("eyr", validate_expiration_year),
-        ("hgt", validate_height),
-        ("hcl", validate_hair_colour),
-        ("ecl", validate_eye_colour),
-        ("pid", validate_passport_id),
+        (
+            "byr",
+            Box::new(|val: &str| -> bool { validate_year(val, 1920, 2002) }) as ValidatorFn,
+        ),
+        ("iyr", Box::new(|val| validate_year(val, 2010, 2020))),
+        ("eyr", Box::new(|val| validate_year(val, 2020, 2030))),
+        ("hgt", Box::new(validate_height)),
+        ("hcl", Box::new(validate_hair_colour)),
+        ("ecl", Box::new(validate_eye_colour)),
+        ("pid", Box::new(validate_passport_id)),
     ]
     .into_iter()
-    .map(
-        |(key, validate_fn): (&str, fn(&str) -> bool)| -> (&str, ValidatorFn) {
-            (key, Box::new(validate_fn))
-        },
-    )
     .collect();
 
     let simple_validation_rules: HashMap<&str, ValidatorFn> = full_validation_rules
@@ -87,43 +85,17 @@ fn validate_passport(
         })
 }
 
-fn validate_birth_year(input: &str) -> bool {
+fn validate_year(input: &str, min: u32, max: u32) -> bool {
     if input.len() != 4 {
         return false;
     }
 
-    let birth_year: u32 = match input.parse() {
+    let year: u32 = match input.parse() {
         Ok(year) => year,
         Err(_) => return false,
     };
 
-    birth_year >= 1920 && birth_year <= 2002
-}
-
-fn validate_issue_year(input: &str) -> bool {
-    if input.len() != 4 {
-        return false;
-    }
-
-    let issue_year: u32 = match input.parse() {
-        Ok(year) => year,
-        Err(_) => return false,
-    };
-
-    issue_year >= 2010 && issue_year <= 2020
-}
-
-fn validate_expiration_year(input: &str) -> bool {
-    if input.len() != 4 {
-        return false;
-    }
-
-    let expiration_year: u32 = match input.parse() {
-        Ok(year) => year,
-        Err(_) => return false,
-    };
-
-    expiration_year >= 2020 && expiration_year <= 2030
+    year >= min && year <= max
 }
 
 enum Unit {

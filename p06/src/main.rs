@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::iter::FromIterator;
+use std::ops::{BitAnd, BitOr};
 
 fn main() {
     let input = load_input();
@@ -37,7 +38,9 @@ fn load_input() -> Vec<Vec<AlphabetSet>> {
 // a u32 whose 26 least significant bits represent the lowercase letters 'a' to
 // 'z'. This saves on unnecessary allocations and hashing and makes calculations
 // of unions and intersections cheap.
+#[derive(Copy, Clone, Debug)]
 struct AlphabetSet(u32);
+
 const NUM_LETTERS: usize = 26;
 
 impl AlphabetSet {
@@ -73,14 +76,6 @@ impl AlphabetSet {
     fn is_empty(&self) -> bool {
         self.0 == 0
     }
-
-    fn union(&self, other: &Self) -> Self {
-        Self(self.0 | other.0)
-    }
-
-    fn intersection(&self, other: &Self) -> Self {
-        Self(self.0 & other.0)
-    }
 }
 
 impl FromIterator<char> for AlphabetSet {
@@ -95,6 +90,22 @@ impl FromIterator<char> for AlphabetSet {
     }
 }
 
+impl BitAnd for AlphabetSet {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self(self.0 & rhs.0)
+    }
+}
+
+impl BitOr for AlphabetSet {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
+    }
+}
+
 fn sum_all_counts(groups: &[Vec<AlphabetSet>]) -> usize {
     groups.iter().map(|group| count_unique(group)).sum()
 }
@@ -102,8 +113,8 @@ fn sum_all_counts(groups: &[Vec<AlphabetSet>]) -> usize {
 fn count_unique(group: &[AlphabetSet]) -> usize {
     let mut unique_answers = AlphabetSet::new();
 
-    for person in group {
-        unique_answers = unique_answers.union(person);
+    for &person in group {
+        unique_answers = unique_answers | person;
     }
 
     unique_answers.len()
@@ -116,8 +127,8 @@ fn sum_shared_counts(groups: &[Vec<AlphabetSet>]) -> usize {
 fn count_shared(group: &[AlphabetSet]) -> usize {
     let mut shared_answers = AlphabetSet::full();
 
-    for person in group {
-        shared_answers = shared_answers.intersection(person);
+    for &person in group {
+        shared_answers = shared_answers & person;
 
         // Short circuit if there are no shared answers - no point checking the
         // other answers from the group.

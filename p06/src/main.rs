@@ -1,10 +1,14 @@
 use std::env;
 use std::fs;
+use std::iter::FromIterator;
 
 fn main() {
     let input = load_input();
-    let sum = sum_group_counts(&input);
-    println!("sum of group counts is {}", sum);
+    let sum_1 = sum_all_counts(&input);
+    println!("sum of all group counts is {}", sum_1);
+
+    let sum_2 = sum_shared_counts(&input);
+    println!("sum of shared group counts is {}", sum_2);
 }
 
 fn load_input() -> Vec<Vec<Vec<char>>> {
@@ -51,9 +55,29 @@ impl AlphabetSet {
     fn len(&self) -> usize {
         self.0.iter().sum::<u8>() as usize
     }
+
+    fn inplace_union(&mut self, other: &AlphabetSet) {
+        for i in 0..26 {
+            if self.0[i] == 1 && other.0[i] == 0 {
+                self.0[i] = 0;
+            }
+        }
+    }
 }
 
-fn sum_group_counts(groups: &[Vec<Vec<char>>]) -> usize {
+impl FromIterator<char> for AlphabetSet {
+    fn from_iter<I: IntoIterator<Item = char>>(iter: I) -> Self {
+        let mut set = AlphabetSet::new();
+
+        for c in iter {
+            set.insert(c);
+        }
+
+        set
+    }
+}
+
+fn sum_all_counts(groups: &[Vec<Vec<char>>]) -> usize {
     groups.iter().map(|group| count_unique(group)).sum()
 }
 
@@ -67,4 +91,25 @@ fn count_unique(group: &[Vec<char>]) -> usize {
     }
 
     unique_elements.len()
+}
+
+fn sum_shared_counts(groups: &[Vec<Vec<char>>]) -> usize {
+    groups.iter().map(|group| count_shared(group)).sum()
+}
+
+fn count_shared(group: &[Vec<char>]) -> usize {
+    let mut shared_answers: AlphabetSet = group[0].iter().cloned().collect();
+
+    for person in &group[1..] {
+        let answers: AlphabetSet = person.iter().cloned().collect();
+        shared_answers.inplace_union(&answers);
+
+        // Short circuit if there are no shared answers - no point checking the
+        // other answers from the group.
+        if shared_answers.len() == 0 {
+            return 0;
+        }
+    }
+
+    shared_answers.len()
 }

@@ -56,7 +56,7 @@ impl AlphabetSet {
         self.0.iter().sum::<u8>() as usize
     }
 
-    fn inplace_union(&mut self, other: &AlphabetSet) {
+    fn inplace_intersection(&mut self, other: &AlphabetSet) {
         for i in 0..26 {
             if self.0[i] == 1 && other.0[i] == 0 {
                 self.0[i] = 0;
@@ -102,7 +102,7 @@ fn count_shared(group: &[Vec<char>]) -> usize {
 
     for person in &group[1..] {
         let answers: AlphabetSet = person.iter().cloned().collect();
-        shared_answers.inplace_union(&answers);
+        shared_answers.inplace_intersection(&answers);
 
         // Short circuit if there are no shared answers - no point checking the
         // other answers from the group.

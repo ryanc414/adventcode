@@ -11,7 +11,7 @@ fn main() {
     println!("sum of shared group counts is {}", sum_2);
 }
 
-fn load_input() -> Vec<Vec<Vec<char>>> {
+fn load_input() -> Vec<Vec<AlphabetSet>> {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("please specify input filename");
@@ -23,7 +23,7 @@ fn load_input() -> Vec<Vec<Vec<char>>> {
     contents
         .split("\n\n")
         .filter(|group| !group.is_empty())
-        .map(|group: &str| -> Vec<Vec<char>> {
+        .map(|group: &str| -> Vec<AlphabetSet> {
             group
                 .split('\n')
                 .filter(|line| !line.is_empty())
@@ -34,13 +34,19 @@ fn load_input() -> Vec<Vec<Vec<char>>> {
 }
 
 // Instead of using a general-purpose HashSet, we can implement a set based on
-// a 26-element array since we know that all answers will be lowercase letters
-// 'a' to 'z'. This saves on unnecessary allocations and hashing.
-struct AlphabetSet([u8; 26]);
+// a u32 whose 26 least significant bits represent the lowercase letters 'a' to
+// 'z'. This saves on unnecessary allocations and hashing and makes calculations
+// of unions and intersections cheap.
+struct AlphabetSet(u32);
+const NUM_LETTERS: usize = 26;
 
 impl AlphabetSet {
     fn new() -> AlphabetSet {
-        AlphabetSet([0; 26])
+        AlphabetSet(0)
+    }
+
+    fn full() -> AlphabetSet {
+        AlphabetSet((1 << NUM_LETTERS) - 1)
     }
 
     fn insert(&mut self, element: char) {
@@ -49,19 +55,31 @@ impl AlphabetSet {
         }
 
         let ix: usize = element as usize - 'a' as usize;
-        self.0[ix] = 1;
+        self.0 |= 1 << ix;
     }
 
     fn len(&self) -> usize {
-        self.0.iter().sum::<u8>() as usize
-    }
+        let mut count: usize = 0;
 
-    fn inplace_intersection(&mut self, other: &AlphabetSet) {
-        for i in 0..26 {
-            if self.0[i] == 1 && other.0[i] == 0 {
-                self.0[i] = 0;
+        for i in 0..NUM_LETTERS {
+            if self.0 & (1 << i) != 0 {
+                count += 1;
             }
         }
+
+        count
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0 == 0
+    }
+
+    fn union(&self, other: &Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    fn intersection(&self, other: &Self) -> Self {
+        Self(self.0 & other.0)
     }
 }
 
@@ -77,36 +95,33 @@ impl FromIterator<char> for AlphabetSet {
     }
 }
 
-fn sum_all_counts(groups: &[Vec<Vec<char>>]) -> usize {
+fn sum_all_counts(groups: &[Vec<AlphabetSet>]) -> usize {
     groups.iter().map(|group| count_unique(group)).sum()
 }
 
-fn count_unique(group: &[Vec<char>]) -> usize {
-    let mut unique_elements = AlphabetSet::new();
+fn count_unique(group: &[AlphabetSet]) -> usize {
+    let mut unique_answers = AlphabetSet::new();
 
     for person in group {
-        for &answer in person {
-            unique_elements.insert(answer);
-        }
+        unique_answers = unique_answers.union(person);
     }
 
-    unique_elements.len()
+    unique_answers.len()
 }
 
-fn sum_shared_counts(groups: &[Vec<Vec<char>>]) -> usize {
+fn sum_shared_counts(groups: &[Vec<AlphabetSet>]) -> usize {
     groups.iter().map(|group| count_shared(group)).sum()
 }
 
-fn count_shared(group: &[Vec<char>]) -> usize {
-    let mut shared_answers: AlphabetSet = group[0].iter().cloned().collect();
+fn count_shared(group: &[AlphabetSet]) -> usize {
+    let mut shared_answers = AlphabetSet::full();
 
-    for person in &group[1..] {
-        let answers: AlphabetSet = person.iter().cloned().collect();
-        shared_answers.inplace_intersection(&answers);
+    for person in group {
+        shared_answers = shared_answers.intersection(person);
 
         // Short circuit if there are no shared answers - no point checking the
         // other answers from the group.
-        if shared_answers.len() == 0 {
+        if shared_answers.is_empty() {
             return 0;
         }
     }

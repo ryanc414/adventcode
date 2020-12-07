@@ -62,19 +62,7 @@ impl AlphabetSet {
     }
 
     fn len(&self) -> usize {
-        let mut count: usize = 0;
-
-        for i in 0..NUM_LETTERS {
-            if self.0 & (1 << i) != 0 {
-                count += 1;
-            }
-        }
-
-        count
-    }
-
-    fn is_empty(&self) -> bool {
-        self.0 == 0
+        (0..NUM_LETTERS).filter(|i| self.0 & (1 << i) != 0).count()
     }
 }
 
@@ -111,13 +99,12 @@ fn sum_all_counts(groups: &[Vec<AlphabetSet>]) -> usize {
 }
 
 fn count_unique(group: &[AlphabetSet]) -> usize {
-    let mut unique_answers = AlphabetSet::new();
-
-    for &person in group {
-        unique_answers = unique_answers | person;
-    }
-
-    unique_answers.len()
+    group
+        .iter()
+        .fold(AlphabetSet::new(), |unique_answers, &person| {
+            unique_answers | person
+        })
+        .len()
 }
 
 fn sum_shared_counts(groups: &[Vec<AlphabetSet>]) -> usize {
@@ -125,17 +112,10 @@ fn sum_shared_counts(groups: &[Vec<AlphabetSet>]) -> usize {
 }
 
 fn count_shared(group: &[AlphabetSet]) -> usize {
-    let mut shared_answers = AlphabetSet::full();
-
-    for &person in group {
-        shared_answers = shared_answers & person;
-
-        // Short circuit if there are no shared answers - no point checking the
-        // other answers from the group.
-        if shared_answers.is_empty() {
-            return 0;
-        }
-    }
-
-    shared_answers.len()
+    group
+        .iter()
+        .fold(AlphabetSet::full(), |shared_answers, &person| {
+            shared_answers & person
+        })
+        .len()
 }

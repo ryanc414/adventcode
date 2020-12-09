@@ -69,11 +69,7 @@ fn collect_previous(previous: &[u64]) -> HashMap<u64, usize> {
     let mut map: HashMap<u64, usize> = HashMap::new();
 
     for &val in previous {
-        let count = match map.get(&val) {
-            Some(val) => val + 1,
-            None => 1,
-        };
-        map.insert(val, count);
+        *map.entry(val).or_default() += 1;
     }
 
     map

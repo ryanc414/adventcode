@@ -31,13 +31,9 @@ impl BagGraph {
     }
 
     fn count_children(&self, node_ix: usize) -> usize {
-        let mut count = 0;
-
-        for child in self.bags[node_ix].children.iter() {
-            count += child.count * (1 + self.count_children(child.index));
-        }
-
-        count
+        self.bags[node_ix].children.iter().fold(0, |count, child| {
+            count + child.count * (1 + self.count_children(child.index))
+        })
     }
 }
 

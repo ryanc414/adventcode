@@ -90,14 +90,13 @@ fn find_weakness(input: &[u64], target: u64) -> Option<u64> {
     None
 }
 
-fn find_contiguous_sum(input: &[u64], target: u64, start_ix: usize) -> Option<Vec<u64>> {
+fn find_contiguous_sum(input: &[u64], target: u64, start_ix: usize) -> Option<&[u64]> {
     let mut sum = 0;
 
     for i in start_ix..input.len() {
         sum += input[i];
         if sum == target {
-            let range: Vec<u64> = input[start_ix..i + 1].to_vec();
-            return Some(range);
+            return Some(&input[start_ix..i + 1]);
         }
         if sum > target {
             return None;

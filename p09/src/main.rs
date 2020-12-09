@@ -4,9 +4,13 @@ use std::fs;
 
 fn main() {
     let (input, preamble_len) = load_input();
+
     let num = find_first_rulebreaker(&input, preamble_len)
         .expect("could not find any numbers that break the rules");
-    println!("first number to break the rules is {}", num)
+    println!("first number to break the rules is {}", num);
+
+    let weakness = find_weakness(&input, num).expect("could not find encryption weakness");
+    println!("encryption weakness is {}", weakness);
 }
 
 fn load_input() -> (Vec<u64>, usize) {
@@ -73,4 +77,32 @@ fn collect_previous(previous: &[u64]) -> HashMap<u64, usize> {
     }
 
     map
+}
+
+fn find_weakness(input: &[u64], target: u64) -> Option<u64> {
+    for i in 0..input.len() {
+        if let Some(range) = find_contiguous_sum(input, target, i) {
+            let min = range.iter().min().unwrap();
+            let max = range.iter().max().unwrap();
+            return Some(min + max);
+        }
+    }
+    None
+}
+
+fn find_contiguous_sum(input: &[u64], target: u64, start_ix: usize) -> Option<Vec<u64>> {
+    let mut sum = 0;
+
+    for i in start_ix..input.len() {
+        sum += input[i];
+        if sum == target {
+            let range: Vec<u64> = input[start_ix..i + 1].to_vec();
+            return Some(range);
+        }
+        if sum > target {
+            return None;
+        }
+    }
+
+    None
 }

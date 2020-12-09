@@ -6,14 +6,14 @@ use std::iter::FromIterator;
 
 fn main() {
     let input = load_input();
-    let num_parents = find_total_num_parents(&input);
-    println!("shiny gold bag can be contained by {} others", num_parents);
-}
 
-fn find_total_num_parents(input: &BagGraph) -> usize {
     let &root = input.bags_by_name.get("shiny gold").unwrap();
-    let parents = input.find_parents(root);
-    parents.len()
+
+    let num_parents = input.find_parents(root).len();
+    println!("shiny gold bag can be contained by {} others", num_parents);
+
+    let num_children = input.count_children(root);
+    println!("shiny gold bag must contain {} other bags", num_children);
 }
 
 struct BagGraph {
@@ -34,9 +34,9 @@ impl BagGraph {
 
         bag.children = line
             .split(", ")
-            .map(|item: &str| -> (u32, usize) {
+            .map(|item: &str| -> (usize, usize) {
                 let caps = children_re.captures(item).unwrap();
-                let num: u32 = caps[1].parse().unwrap();
+                let num: usize = caps[1].parse().unwrap();
                 let name = &caps[2];
                 (num, *bag_names.get(name).unwrap())
             })
@@ -49,6 +49,16 @@ impl BagGraph {
             parents.extend(self.find_parents(i));
         }
         parents
+    }
+
+    fn count_children(&self, node_ix: usize) -> usize {
+        let mut count = 0;
+
+        for &(child_count, child_ix) in self.bags[node_ix].children.iter() {
+            count += child_count * (1 + self.count_children(child_ix));
+        }
+
+        count
     }
 }
 
@@ -82,7 +92,7 @@ impl<'a> FromIterator<&'a str> for BagGraph {
         }
 
         for i in 0..bags.len() {
-            let children: Vec<(u32, usize)> = bags[i].children.to_vec();
+            let children: Vec<(usize, usize)> = bags[i].children.to_vec();
             for (_, child_ix) in children {
                 bags[child_ix].parents.push(i);
             }
@@ -98,7 +108,7 @@ impl<'a> FromIterator<&'a str> for BagGraph {
 #[derive(Debug, Clone)]
 struct Bag {
     name: String,
-    children: Vec<(u32, usize)>,
+    children: Vec<(usize, usize)>,
     parents: Vec<usize>,
 }
 

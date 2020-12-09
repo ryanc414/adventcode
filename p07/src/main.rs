@@ -22,27 +22,6 @@ struct BagGraph {
 }
 
 impl BagGraph {
-    fn parse_children(
-        line: &str,
-        children_re: &Regex,
-        bag: &mut Bag,
-        bag_names: &HashMap<String, usize>,
-    ) {
-        if line == "no other bags" {
-            return;
-        }
-
-        bag.children = line
-            .split(", ")
-            .map(|item: &str| -> (usize, usize) {
-                let caps = children_re.captures(item).unwrap();
-                let num: usize = caps[1].parse().unwrap();
-                let name = &caps[2];
-                (num, *bag_names.get(name).unwrap())
-            })
-            .collect();
-    }
-
     fn find_parents(&self, node_ix: usize) -> HashSet<usize> {
         let mut parents: HashSet<usize> = self.bags[node_ix].parents.iter().cloned().collect();
         for &i in self.bags[node_ix].parents.iter() {
@@ -54,8 +33,8 @@ impl BagGraph {
     fn count_children(&self, node_ix: usize) -> usize {
         let mut count = 0;
 
-        for &(child_count, child_ix) in self.bags[node_ix].children.iter() {
-            count += child_count * (1 + self.count_children(child_ix));
+        for child in self.bags[node_ix].children.iter() {
+            count += child.count * (1 + self.count_children(child.index));
         }
 
         count
@@ -88,12 +67,12 @@ impl<'a> FromIterator<&'a str> for BagGraph {
 
         let children_re = Regex::new(r"^(\d+) ([a-z ]+) bags?$").unwrap();
         for (i, line) in child_text.iter().enumerate() {
-            Self::parse_children(line, &children_re, &mut bags[i], &bag_map);
+            bags[i].parse_children(line, &children_re, &bag_map);
         }
 
         for i in 0..bags.len() {
-            let children: Vec<(usize, usize)> = bags[i].children.to_vec();
-            for (_, child_ix) in children {
+            for j in 0..bags[i].children.len() {
+                let child_ix = bags[i].children[j].index;
                 bags[child_ix].parents.push(i);
             }
         }
@@ -108,8 +87,40 @@ impl<'a> FromIterator<&'a str> for BagGraph {
 #[derive(Debug, Clone)]
 struct Bag {
     name: String,
-    children: Vec<(usize, usize)>,
+    children: Vec<ChildInfo>,
     parents: Vec<usize>,
+}
+
+impl Bag {
+    fn parse_children(
+        &mut self,
+        line: &str,
+        children_re: &Regex,
+        bag_names: &HashMap<String, usize>,
+    ) {
+        if line == "no other bags" {
+            return;
+        }
+
+        self.children = line
+            .split(", ")
+            .map(|item: &str| -> ChildInfo {
+                let caps = children_re.captures(item).unwrap();
+                let num: usize = caps[1].parse().unwrap();
+                let name = &caps[2];
+                ChildInfo {
+                    count: num,
+                    index: *bag_names.get(name).unwrap(),
+                }
+            })
+            .collect();
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ChildInfo {
+    count: usize,
+    index: usize,
 }
 
 fn load_input() -> BagGraph {

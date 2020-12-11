@@ -1,5 +1,8 @@
+use std::collections::VecDeque;
 use std::env;
 use std::fs;
+
+const ALLOWED_JOLT_DIFF: u32 = 3;
 
 fn main() {
     let mut input = load_input();
@@ -48,30 +51,37 @@ fn find_jolt_differences(input: &[u32]) -> [u64; 3] {
 }
 
 fn find_num_arrangements(input: &[u32]) -> u64 {
-    let mut arrangements_to: Vec<u64> = Vec::with_capacity(input.len() + 1);
-    arrangements_to.push(1);
+    // Assuming each adaptor has a unique joltage, we only need to remember how
+    // many ways we could connect to the adapter at most 3 back from the current
+    // adaptor being processed. Use a VecDeque to achieve this.
+    let mut arrangements_to: VecDeque<u64> = VecDeque::with_capacity(ALLOWED_JOLT_DIFF as usize);
 
-    let jolts: Vec<u32> = [0].iter().chain(input.iter()).cloned().collect();
-
-    for i in 1..jolts.len() {
-        let total_arrangements = count_arrangements_to(&jolts, i, &arrangements_to);
-        arrangements_to.push(total_arrangements);
+    for i in 0..input.len() {
+        let total_arrangements = count_arrangements_to(&input, i, &arrangements_to);
+        if arrangements_to.len() == 3 {
+            arrangements_to.pop_back();
+        }
+        arrangements_to.push_front(total_arrangements);
     }
 
-    arrangements_to[arrangements_to.len() - 1]
+    arrangements_to.pop_front().unwrap()
 }
 
-fn count_arrangements_to(jolts: &[u32], i: usize, arrangements_to: &[u64]) -> u64 {
-    let mut count = 0;
-    let mut j = i - 1;
+fn count_arrangements_to(jolts: &[u32], i: usize, arrangements_to: &VecDeque<u64>) -> u64 {
+    let min_ix = if i > (ALLOWED_JOLT_DIFF as usize) {
+        i - (ALLOWED_JOLT_DIFF as usize)
+    } else {
+        0
+    };
 
-    while jolts[i] - jolts[j] <= 3 {
-        count += arrangements_to[j];
-        if j == 0 {
-            break;
+    // Count an extra 1 if the current adapter can connect to the device at 0 jolts.
+    let initial_count = if jolts[i] > ALLOWED_JOLT_DIFF { 0 } else { 1 };
+
+    (min_ix..i).fold(initial_count, |count, j| {
+        if jolts[i] - jolts[j] > ALLOWED_JOLT_DIFF {
+            count
+        } else {
+            count + arrangements_to[i - j - 1]
         }
-        j -= 1;
-    }
-
-    count
+    })
 }

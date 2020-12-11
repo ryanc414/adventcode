@@ -103,44 +103,48 @@ fn next_state_for(state: &[Vec<Position>], row: usize, col: usize) -> Position {
     }
 }
 
-fn count_occupied_neighbours(state: &[Vec<Position>], row: usize, col: usize) -> usize {
-    let mut count = 0;
-    let min_row = if row > 0 { row - 1 } else { 0 };
-    let max_row = if row < (state.len() - 1) {
-        row + 1
+fn count_occupied_neighbours(state: &[Vec<Position>], row_ix: usize, col_ix: usize) -> usize {
+    let min_row_ix = if row_ix > 0 { row_ix - 1 } else { 0 };
+    let max_row_ix = if row_ix < (state.len() - 1) {
+        row_ix + 1
     } else {
-        row
+        row_ix
     };
-    let min_col = if col > 0 { col - 1 } else { 0 };
-    let max_col = if col < (state[0].len() - 1) {
-        col + 1
+    let min_col_ix = if col_ix > 0 { col_ix - 1 } else { 0 };
+    let max_col_ix = if col_ix < (state[0].len() - 1) {
+        col_ix + 1
     } else {
-        col
+        col_ix
     };
 
-    for i in min_row..(max_row + 1) {
-        for j in min_col..(max_col + 1) {
-            if i == row && j == col {
-                continue;
-            }
-            if state[i][j] == Position::OccupiedSeat {
-                count += 1;
-            }
-        }
-    }
-
-    count
+    state[min_row_ix..(max_row_ix + 1)]
+        .iter()
+        .enumerate()
+        .fold(0, |count, (i, row)| {
+            row[min_col_ix..(max_col_ix + 1)].iter().enumerate().fold(
+                count,
+                |inner_count, (j, &pos)| {
+                    if i + min_row_ix == row_ix && j + min_col_ix == col_ix {
+                        return inner_count;
+                    }
+                    if pos == Position::OccupiedSeat {
+                        inner_count + 1
+                    } else {
+                        inner_count
+                    }
+                },
+            )
+        })
 }
 
 fn count_total_occupied(state: &[Vec<Position>]) -> usize {
     state.iter().fold(0, |count, row| {
-        count
-            + row.iter().fold(0, |inner_count, &pos| {
-                if pos == Position::OccupiedSeat {
-                    inner_count + 1
-                } else {
-                    inner_count
-                }
-            })
+        row.iter().fold(count, |inner_count, &pos| {
+            if pos == Position::OccupiedSeat {
+                inner_count + 1
+            } else {
+                inner_count
+            }
+        })
     })
 }

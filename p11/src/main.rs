@@ -1,12 +1,21 @@
 use std::env;
 use std::fs;
 
+type NextStateFn = fn(&[Vec<Position>], (usize, usize)) -> Position;
+
 fn main() {
     let input = load_input();
-    let occupied_count = count_stable_occupied(&input);
+
+    let occupied_count_1 = count_stable_occupied(&input, next_state_for_part_1);
     println!(
-        "there are {} occupied seats in the stable arrangement",
-        occupied_count
+        "there are {} occupied seats in the stable arrangement for part one",
+        occupied_count_1
+    );
+
+    let occupied_count_2 = count_stable_occupied(&input, next_state_for_part_2);
+    println!(
+        "there are {} occupied seats in the stable arrangement for part two",
+        occupied_count_2
     );
 }
 
@@ -44,16 +53,16 @@ fn parse_row(line: &str) -> Vec<Position> {
         .collect()
 }
 
-fn count_stable_occupied(input: &[Vec<Position>]) -> usize {
+fn count_stable_occupied(input: &[Vec<Position>], next_state_fn: NextStateFn) -> usize {
     let mut states = (input.to_vec(), input.to_vec());
     let mut flip_states = false;
     let mut iter_count = 0;
 
     while iter_count == 0 || states.0 != states.1 {
         if !flip_states {
-            calculate_next_state(&states.0, &mut states.1);
+            calculate_next_state(&states.0, &mut states.1, next_state_fn);
         } else {
-            calculate_next_state(&states.1, &mut states.0);
+            calculate_next_state(&states.1, &mut states.0, next_state_fn);
         }
         iter_count += 1;
         flip_states = !flip_states;
@@ -71,15 +80,19 @@ fn count_stable_occupied(input: &[Vec<Position>]) -> usize {
     }
 }
 
-fn calculate_next_state(state: &[Vec<Position>], next_state: &mut [Vec<Position>]) {
+fn calculate_next_state(
+    state: &[Vec<Position>],
+    next_state: &mut [Vec<Position>],
+    next_state_fn: NextStateFn,
+) {
     for row in 0..state.len() {
         for col in 0..state[row].len() {
-            next_state[row][col] = next_state_for(state, row, col);
+            next_state[row][col] = next_state_fn(state, (row, col));
         }
     }
 }
 
-fn next_state_for(state: &[Vec<Position>], row: usize, col: usize) -> Position {
+fn next_state_for_part_1(state: &[Vec<Position>], (row, col): (usize, usize)) -> Position {
     match state[row][col] {
         Position::EmptySeat => {
             let occupied_neighbours = count_occupied_neighbours(state, row, col);
@@ -104,47 +117,103 @@ fn next_state_for(state: &[Vec<Position>], row: usize, col: usize) -> Position {
 }
 
 fn count_occupied_neighbours(state: &[Vec<Position>], row_ix: usize, col_ix: usize) -> usize {
-    let min_row_ix = if row_ix > 0 { row_ix - 1 } else { 0 };
-    let max_row_ix = if row_ix < (state.len() - 1) {
-        row_ix + 1
-    } else {
-        row_ix
-    };
-    let min_col_ix = if col_ix > 0 { col_ix - 1 } else { 0 };
-    let max_col_ix = if col_ix < (state[0].len() - 1) {
-        col_ix + 1
-    } else {
-        col_ix
-    };
-
-    state[min_row_ix..(max_row_ix + 1)]
+    all_directions()
         .iter()
-        .enumerate()
-        .fold(0, |count, (i, row)| {
-            row[min_col_ix..(max_col_ix + 1)].iter().enumerate().fold(
-                count,
-                |inner_count, (j, &pos)| {
-                    if i + min_row_ix == row_ix && j + min_col_ix == col_ix {
-                        return inner_count;
-                    }
-                    if pos == Position::OccupiedSeat {
-                        inner_count + 1
-                    } else {
-                        inner_count
-                    }
-                },
-            )
+        .filter(|dir| {
+            let neighbour_row = (row_ix as i64) + dir.0;
+            let neighbour_col = (col_ix as i64) + dir.1;
+
+            if !valid_position(state, (neighbour_row, neighbour_col)) {
+                return false;
+            }
+
+            state[neighbour_row as usize][neighbour_col as usize] == Position::OccupiedSeat
         })
+        .count()
+}
+
+fn valid_position(state: &[Vec<Position>], (row, col): (i64, i64)) -> bool {
+    row >= 0 && (row as usize) < state.len() && col >= 0 && (col as usize) < state[0].len()
+}
+
+fn next_state_for_part_2(state: &[Vec<Position>], (row, col): (usize, usize)) -> Position {
+    match state[row][col] {
+        Position::EmptySeat => {
+            let visible_occupied = count_visible_occupied(state, (row, col));
+            if visible_occupied == 0 {
+                Position::OccupiedSeat
+            } else {
+                Position::EmptySeat
+            }
+        }
+
+        Position::OccupiedSeat => {
+            let visible_occupied = count_visible_occupied(state, (row, col));
+            if visible_occupied >= 5 {
+                Position::EmptySeat
+            } else {
+                Position::OccupiedSeat
+            }
+        }
+
+        Position::Floor => Position::Floor,
+    }
+}
+
+fn count_visible_occupied(state: &[Vec<Position>], (row, col): (usize, usize)) -> usize {
+    all_directions()
+        .iter()
+        .filter(|&&dir| occupied_is_visible(state, (row, col), dir))
+        .count()
+}
+
+fn all_directions() -> [(i64, i64); 8] {
+    let mut directions = [(0, 0); 8];
+    let mut i = 0;
+
+    for &x in &[-1, 0, 1] {
+        for &y in &[-1, 0, 1] {
+            if x == 0 && y == 0 {
+                continue;
+            }
+
+            directions[i] = (x, y);
+            i += 1;
+        }
+    }
+
+    directions
+}
+
+fn occupied_is_visible(
+    state: &[Vec<Position>],
+    (row, col): (usize, usize),
+    direction: (i64, i64),
+) -> bool {
+    let mut y = (row as i64) + direction.0;
+    let mut x = (col as i64) + direction.1;
+
+    while valid_position(state, (y, x)) {
+        match state[y as usize][x as usize] {
+            Position::OccupiedSeat => return true,
+            Position::EmptySeat => return false,
+            Position::Floor => {
+                y += direction.0;
+                x += direction.1;
+            }
+        }
+    }
+
+    false
 }
 
 fn count_total_occupied(state: &[Vec<Position>]) -> usize {
-    state.iter().fold(0, |count, row| {
-        row.iter().fold(count, |inner_count, &pos| {
-            if pos == Position::OccupiedSeat {
-                inner_count + 1
-            } else {
-                inner_count
-            }
+    state
+        .iter()
+        .map(|row| {
+            row.iter()
+                .filter(|&&pos| pos == Position::OccupiedSeat)
+                .count()
         })
-    })
+        .sum()
 }

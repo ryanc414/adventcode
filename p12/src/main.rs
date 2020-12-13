@@ -11,43 +11,37 @@ fn main() {
     println!("final distance is {}", final_distance_2);
 }
 
-struct Instruction {
-    action: Action,
-    value: i64,
+enum Instruction {
+    North(i64),
+    South(i64),
+    East(i64),
+    West(i64),
+    Left(usize),
+    Right(usize),
+    Forward(i64),
 }
 
 impl Instruction {
     fn parse(line: &str) -> Self {
-        Self {
-            action: Action::parse(line.chars().next().unwrap()),
-            value: line[1..].parse().unwrap(),
+        let val: i64 = line[1..].parse().unwrap();
+
+        match line.chars().next().unwrap() {
+            'N' => Instruction::North(val),
+            'S' => Instruction::South(val),
+            'E' => Instruction::East(val),
+            'W' => Instruction::West(val),
+            'L' => Instruction::Left(Self::convert_turn_val(val)),
+            'R' => Instruction::Right(Self::convert_turn_val(val)),
+            'F' => Instruction::Forward(val),
+            c => panic!("unexpected Instruction input {}", c),
         }
     }
-}
 
-#[derive(Debug)]
-enum Action {
-    North,
-    South,
-    East,
-    West,
-    Left,
-    Right,
-    Forward,
-}
-
-impl Action {
-    fn parse(c: char) -> Self {
-        match c {
-            'N' => Action::North,
-            'S' => Action::South,
-            'E' => Action::East,
-            'W' => Action::West,
-            'L' => Action::Left,
-            'R' => Action::Right,
-            'F' => Action::Forward,
-            _ => panic!("unexpected action input {}", c),
+    fn convert_turn_val(val: i64) -> usize {
+        if val < 0 || val % 90 != 0 {
+            panic!("unexpected valut for Left turn")
         }
+        ((val as usize) / 90) % 360
     }
 }
 
@@ -67,7 +61,12 @@ fn load_input() -> Vec<Instruction> {
 
 trait State {
     fn process_instruction(&self, instr: &Instruction) -> Self;
-    fn manhattan_distance(&self) -> i64;
+    fn get_position(&self) -> (i64, i64);
+
+    fn manhattan_distance(&self) -> i64 {
+        let position = self.get_position();
+        position.0.abs() + position.1.abs()
+    }
 }
 
 #[derive(Debug)]
@@ -86,59 +85,54 @@ impl State1 {
         }
     }
 
-    fn turn(&self, degrees: i64, right: bool) -> usize {
-        if degrees % 90 != 0 {
-            panic!("unexpected turn value {}", degrees);
-        }
-
+    fn turn(&self, turns: usize, right: bool) -> usize {
         if !right {
-            ((self.facing as i64 + (degrees / 90)) % 4) as usize
+            (self.facing + turns) % 4
         } else {
-            let a = self.facing as i64 - ((degrees % 360) / 90);
-            ((a + 4) % 4) as usize
+            (self.facing + 4 - turns) % 4
         }
     }
 }
 
 impl State for State1 {
     fn process_instruction(&self, instr: &Instruction) -> Self {
-        match instr.action {
-            Action::North => Self {
-                position: (self.position.0, self.position.1 + instr.value),
+        match instr {
+            Instruction::North(val) => Self {
+                position: (self.position.0, self.position.1 + val),
                 facing: self.facing,
             },
-            Action::South => Self {
-                position: (self.position.0, self.position.1 - instr.value),
+            Instruction::South(val) => Self {
+                position: (self.position.0, self.position.1 - val),
                 facing: self.facing,
             },
-            Action::East => Self {
-                position: (self.position.0 + instr.value, self.position.1),
+            Instruction::East(val) => Self {
+                position: (self.position.0 + val, self.position.1),
                 facing: self.facing,
             },
-            Action::West => Self {
-                position: (self.position.0 - instr.value, self.position.1),
+            Instruction::West(val) => Self {
+                position: (self.position.0 - val, self.position.1),
                 facing: self.facing,
             },
-            Action::Left => Self {
+            Instruction::Left(val) => Self {
                 position: self.position,
-                facing: self.turn(instr.value, false),
+                facing: self.turn(*val, false),
             },
-            Action::Right => Self {
+            Instruction::Right(val) => Self {
                 position: self.position,
-                facing: self.turn(instr.value, true),
+                facing: self.turn(*val, true),
             },
-            Action::Forward => Self {
+            Instruction::Forward(val) => Self {
                 position: (
-                    self.position.0 + (DIRECTIONS[self.facing].0 * instr.value),
-                    self.position.1 + (DIRECTIONS[self.facing].1 * instr.value),
+                    self.position.0 + (DIRECTIONS[self.facing].0 * val),
+                    self.position.1 + (DIRECTIONS[self.facing].1 * val),
                 ),
                 facing: self.facing,
             },
         }
     }
 
-    fn manhattan_distance(&self) -> i64 {
-        self.position.0.abs() + self.position.1.abs()
+    fn get_position(&self) -> (i64, i64) {
+        self.position
     }
 }
 
@@ -155,24 +149,11 @@ impl State2 {
         }
     }
 
-    fn turn(&self, degrees: i64, right: bool) -> (i64, i64) {
-        if degrees % 90 != 0 {
-            panic!("unexpected degrees value");
-        }
-        let turns = (degrees % 360) / 90;
+    fn turn(&self, turns: usize, right: bool) -> (i64, i64) {
         let mat = if !right {
-            // println!(
-            //     "turning left by {} degrees -> rotation matrix {}",
-            //     degrees, turns
-            // );
-            ROTATION_MATRICES[turns as usize]
+            ROTATION_MATRICES[turns]
         } else {
-            let i = ((4 - turns) % 4) as usize;
-            // println!(
-            //     "turning right by {} degrees -> rotation matrix {}",
-            //     degrees, i
-            // );
-            ROTATION_MATRICES[i]
+            ROTATION_MATRICES[(4 - turns) % 4]
         };
 
         (
@@ -191,49 +172,49 @@ const ROTATION_MATRICES: [[[i64; 2]; 2]; 4] = [
 
 impl State for State2 {
     fn process_instruction(&self, instr: &Instruction) -> Self {
-        match instr.action {
-            Action::North => Self {
+        match instr {
+            Instruction::North(val) => Self {
                 position: self.position,
-                waypoint: (self.waypoint.0, self.waypoint.1 + instr.value),
+                waypoint: (self.waypoint.0, self.waypoint.1 + val),
             },
 
-            Action::South => Self {
+            Instruction::South(val) => Self {
                 position: self.position,
-                waypoint: (self.waypoint.0, self.waypoint.1 - instr.value),
+                waypoint: (self.waypoint.0, self.waypoint.1 - val),
             },
 
-            Action::East => Self {
+            Instruction::East(val) => Self {
                 position: self.position,
-                waypoint: (self.waypoint.0 + instr.value, self.waypoint.1),
+                waypoint: (self.waypoint.0 + val, self.waypoint.1),
             },
 
-            Action::West => Self {
+            Instruction::West(val) => Self {
                 position: self.position,
-                waypoint: (self.waypoint.0 - instr.value, self.waypoint.1),
+                waypoint: (self.waypoint.0 - val, self.waypoint.1),
             },
 
-            Action::Left => Self {
+            Instruction::Left(val) => Self {
                 position: self.position,
-                waypoint: self.turn(instr.value, false),
+                waypoint: self.turn(*val, false),
             },
 
-            Action::Right => Self {
+            Instruction::Right(val) => Self {
                 position: self.position,
-                waypoint: self.turn(instr.value, true),
+                waypoint: self.turn(*val, true),
             },
 
-            Action::Forward => Self {
+            Instruction::Forward(val) => Self {
                 position: (
-                    self.position.0 + (self.waypoint.0 * instr.value),
-                    self.position.1 + (self.waypoint.1 * instr.value),
+                    self.position.0 + (self.waypoint.0 * val),
+                    self.position.1 + (self.waypoint.1 * val),
                 ),
                 waypoint: self.waypoint,
             },
         }
     }
 
-    fn manhattan_distance(&self) -> i64 {
-        self.position.0.abs() + self.position.1.abs()
+    fn get_position(&self) -> (i64, i64) {
+        self.position
     }
 }
 

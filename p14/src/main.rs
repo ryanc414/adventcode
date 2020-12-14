@@ -5,8 +5,12 @@ use std::fs;
 
 fn main() {
     let input = load_input();
-    let mem_sum = find_final_mem_sum(&input);
-    println!("final sum of memory values is {}", mem_sum);
+
+    let mem_sum_1 = find_final_mem_sum(&input, StateVersion::V1);
+    println!("final sum of memory values for V1 is {}", mem_sum_1);
+
+    let mem_sum_2 = find_final_mem_sum(&input, StateVersion::V2);
+    println!("final sum of memory values for V2 is {}", mem_sum_2);
 }
 
 struct InstructionParser {
@@ -38,7 +42,7 @@ impl InstructionParser {
     }
 
     fn parse_memset(&self, mem: &str, val: &str) -> MemSet {
-        let address: usize = self.mem_re.captures(mem).unwrap()[1].parse().unwrap();
+        let address: u64 = self.mem_re.captures(mem).unwrap()[1].parse().unwrap();
         let value: u64 = val.parse().unwrap();
         MemSet { address, value }
     }
@@ -46,8 +50,9 @@ impl InstructionParser {
     fn parse_mask(&self, input: &str) -> Mask {
         let mut ones = 0;
         let mut zeroes = 0;
+        let mut wildcards = Vec::new();
 
-        for c in input.chars() {
+        for (i, c) in input.chars().enumerate() {
             match c {
                 '1' => {
                     ones = (ones << 1) | 1;
@@ -62,13 +67,18 @@ impl InstructionParser {
                 'X' => {
                     ones <<= 1;
                     zeroes = (zeroes << 1) | 1;
+                    wildcards.push(input.len() - 1 - i);
                 }
 
                 _ => panic!("unexpected mask character {}", c),
             };
         }
 
-        Mask { ones, zeroes }
+        Mask {
+            ones,
+            zeroes,
+            wildcards,
+        }
     }
 }
 
@@ -77,20 +87,40 @@ enum Instruction {
     MemSet(MemSet),
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct Mask {
     ones: u64,
     zeroes: u64,
+    wildcards: Vec<usize>,
 }
 
 impl Mask {
-    fn apply(&self, val: u64) -> u64 {
+    fn mask_value(&self, val: u64) -> u64 {
         (val | self.ones) & self.zeroes
+    }
+
+    fn mask_address(&self, addr: u64) -> Vec<u64> {
+        Self::mask_address_recur(addr | self.ones, &self.wildcards)
+    }
+
+    fn mask_address_recur(addr: u64, wildcards: &[usize]) -> Vec<u64> {
+        if wildcards.is_empty() {
+            return vec![addr];
+        }
+
+        let wildcard_pos = wildcards[0];
+
+        let mut addrs = Self::mask_address_recur(addr | (1 << wildcard_pos), &wildcards[1..]);
+        let mut other_addrs =
+            Self::mask_address_recur(addr & (!(1 << wildcard_pos)), &wildcards[1..]);
+        addrs.append(&mut other_addrs);
+
+        addrs
     }
 }
 
 struct MemSet {
-    address: usize,
+    address: u64,
     value: u64,
 }
 
@@ -110,23 +140,34 @@ fn load_input() -> Vec<Instruction> {
         .collect()
 }
 
+enum StateVersion {
+    V1,
+    V2,
+}
+
 struct State {
     mask: Mask,
-    memory: HashMap<usize, u64>,
+    memory: HashMap<u64, u64>, // Use a HashMap to avoid allocating an 8 GB vector...
+    version: StateVersion,
 }
 
 impl State {
-    fn new() -> Self {
+    fn new(version: StateVersion) -> Self {
         Self {
-            mask: Mask { ones: 0, zeroes: 0 },
+            mask: Mask {
+                ones: 0,
+                zeroes: 0,
+                wildcards: Vec::new(),
+            },
             memory: HashMap::new(),
+            version,
         }
     }
 
     fn process_instruction(&mut self, instr: &Instruction) {
         match instr {
-            &Instruction::MaskSet(mask) => {
-                self.mask = mask;
+            Instruction::MaskSet(mask) => {
+                self.mask = mask.clone();
             }
             Instruction::MemSet(mem_set) => {
                 self.apply_memset(mem_set);
@@ -135,8 +176,17 @@ impl State {
     }
 
     fn apply_memset(&mut self, mem_set: &MemSet) {
-        self.memory
-            .insert(mem_set.address, self.mask.apply(mem_set.value));
+        match self.version {
+            StateVersion::V1 => {
+                self.memory
+                    .insert(mem_set.address, self.mask.mask_value(mem_set.value));
+            }
+            StateVersion::V2 => {
+                for addr in self.mask.mask_address(mem_set.address) {
+                    self.memory.insert(addr, mem_set.value);
+                }
+            }
+        };
     }
 
     fn sum_memory_vals(&self) -> u64 {
@@ -144,8 +194,8 @@ impl State {
     }
 }
 
-fn find_final_mem_sum(instructions: &[Instruction]) -> u64 {
-    let mut state = State::new();
+fn find_final_mem_sum(instructions: &[Instruction], version: StateVersion) -> u64 {
+    let mut state = State::new(version);
 
     for instr in instructions {
         state.process_instruction(&instr);

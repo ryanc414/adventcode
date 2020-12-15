@@ -21,19 +21,19 @@ fn get_nth_number(starter_nums: &[usize], target_n: usize) -> usize {
     let mut last_seen: HashMap<usize, usize> = HashMap::new();
     let mut last_num: usize = *starter_nums.first().unwrap();
 
-    let mut n = 2;
+    let mut n = 1;
     for &num in &starter_nums[1..] {
-        last_seen.insert(last_num, n - 1);
+        last_seen.insert(last_num, n);
         last_num = num;
         n += 1;
     }
 
-    while n <= target_n {
+    while n < target_n {
         let next_num = match last_seen.get(&last_num) {
-            Some(i) => n - 1 - i,
+            Some(i) => n - i,
             None => 0,
         };
-        last_seen.insert(last_num, n - 1);
+        last_seen.insert(last_num, n);
         last_num = next_num;
         n += 1;
     }

@@ -4,8 +4,11 @@ use std::env;
 fn main() {
     let input = load_input();
 
-    let number = get_nth_number(&input, 2020);
-    println!("2020th spoken number is {}", number);
+    let number_1 = get_nth_number(&input, 2020);
+    println!("2020th spoken number is {}", number_1);
+
+    let number_2 = get_nth_number(&input, 30000000);
+    println!("30000000th spoken number is {}", number_2);
 }
 
 fn load_input() -> Vec<usize> {

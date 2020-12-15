@@ -20,6 +20,9 @@ fn load_input() -> Vec<usize> {
     args[1].split(',').map(|num| num.parse().unwrap()).collect()
 }
 
+// Possibly there is a smarter solution for large target_n e.g. identifying
+// and exploiting loops. But the dumb brute-force approach runs in just a few
+// seconds even for the larger part 2 input, when compiled in release mode.
 fn get_nth_number(starter_nums: &[usize], target_n: usize) -> usize {
     let mut last_seen: HashMap<usize, usize> = HashMap::new();
     let mut last_num: usize = *starter_nums.first().unwrap();

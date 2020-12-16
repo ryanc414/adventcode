@@ -6,10 +6,11 @@ use std::fs;
 fn main() {
     let input = load_input();
 
-    let err_rate = input.find_err_rate();
+    let invalid_vals = input.find_all_invalid_values();
+    let err_rate = input.find_err_rate(&invalid_vals);
     println!("ticket scanning error rate is {}", err_rate);
 
-    let result = input.multiply_departures();
+    let result = input.multiply_departures(&invalid_vals);
     println!("multiple of all departure fields is {}", result);
 }
 
@@ -91,15 +92,19 @@ impl TicketInfo {
         line.split(',').map(|num| num.parse().unwrap()).collect()
     }
 
-    fn find_err_rate(&self) -> u64 {
+    fn find_all_invalid_values(&self) -> Vec<Vec<u64>> {
         let ranges = self.combine_ranges();
-
         self.nearby_tickets
             .iter()
-            .fold(0, |err_rate: u64, ticket: &Ticket| -> u64 {
-                let vals = Self::find_invalid_values(ticket, &ranges);
-                err_rate + vals.iter().sum::<u64>()
-            })
+            .map(|ticket| Self::find_invalid_values(ticket, &ranges))
+            .collect()
+    }
+
+    fn find_err_rate(&self, invalid_vals: &[Vec<u64>]) -> u64 {
+        invalid_vals
+            .iter()
+            .map(|vals: &Vec<u64>| -> u64 { vals.iter().sum() })
+            .sum()
     }
 
     fn combine_ranges(&self) -> Vec<(u64, u64)> {
@@ -152,16 +157,16 @@ impl TicketInfo {
             .collect()
     }
 
-    fn multiply_departures(&self) -> u64 {
+    fn multiply_departures(&self, invalid_vals: &[Vec<u64>]) -> u64 {
         let ticket_field_order = self
-            .infer_ticket_fields()
+            .infer_ticket_fields(invalid_vals)
             .expect("could not infer ticket fields");
         let my_ticket = self.build_ticket_map(&ticket_field_order);
         Self::multiply_ticket_departures(&my_ticket)
     }
 
-    fn infer_ticket_fields(&self) -> Option<Vec<usize>> {
-        let valid_tickets = self.valid_tickets();
+    fn infer_ticket_fields(&self, invalid_vals: &[Vec<u64>]) -> Option<Vec<usize>> {
+        let valid_tickets = self.valid_tickets(invalid_vals);
 
         let mut all_possible_fields: Vec<HashSet<usize>> =
             vec![(0..self.rules.len()).collect(); self.my_ticket.len()];
@@ -182,42 +187,45 @@ impl TicketInfo {
     fn infer_fields_from_possibles(
         all_possible_fields: &mut [HashSet<usize>],
     ) -> Option<Vec<usize>> {
-        loop {
-            let mut num_singletons = 0;
-
-            for i in 0..all_possible_fields.len() {
-                // sanity check
-                if all_possible_fields[i].is_empty() {
-                    return None;
-                }
-
-                if all_possible_fields[i].len() == 1 {
-                    num_singletons += 1;
-
-                    // Found a val for this field! We can remove it as a possibility
-                    // from all the others.
-                    let &val = all_possible_fields[i].iter().next().unwrap();
-                    for (j, possibles) in all_possible_fields.iter_mut().enumerate() {
-                        if i == j {
-                            continue;
-                        }
-                        possibles.remove(&val);
-                    }
-                }
-            }
-
-            if num_singletons == 0 {
+        for i in 0..all_possible_fields.len() {
+            // sanity check
+            if all_possible_fields[i].is_empty() {
                 return None;
             }
 
-            if num_singletons == all_possible_fields.len() {
-                return Some(
-                    all_possible_fields
-                        .iter()
-                        .map(|possibles| possibles.iter().next().unwrap())
-                        .cloned()
-                        .collect(),
-                );
+            if all_possible_fields[i].len() == 1 {
+                // Found a val for this field! We can remove it as a possibility
+                // from all the others.
+                let &val = all_possible_fields[i].iter().next().unwrap();
+                Self::remove_possibility(all_possible_fields, val, i);
+            }
+        }
+
+        if !all_possible_fields
+            .iter()
+            .all(|possibles| possibles.len() == 1)
+        {
+            return None;
+        }
+
+        Some(
+            all_possible_fields
+                .iter()
+                .map(|possibles| possibles.iter().next().unwrap())
+                .cloned()
+                .collect(),
+        )
+    }
+
+    fn remove_possibility(all_possible_fields: &mut [HashSet<usize>], val: usize, i: usize) {
+        for j in 0..all_possible_fields.len() {
+            if i == j {
+                continue;
+            }
+            let removed = all_possible_fields[j].remove(&val);
+            if removed && all_possible_fields[j].len() == 1 {
+                let &other_val = all_possible_fields[j].iter().next().unwrap();
+                Self::remove_possibility(all_possible_fields, other_val, j);
             }
         }
     }
@@ -238,11 +246,12 @@ impl TicketInfo {
         val >= range.0 && val <= range.1
     }
 
-    fn valid_tickets(&self) -> Vec<&Ticket> {
-        let ranges = self.combine_ranges();
-        self.nearby_tickets
+    fn valid_tickets(&self, invalid_vals: &[Vec<u64>]) -> Vec<&Ticket> {
+        invalid_vals
             .iter()
-            .filter(|ticket| Self::find_invalid_values(ticket, &ranges).is_empty())
+            .enumerate()
+            .filter(|(_, vals)| vals.is_empty())
+            .map(|(i, _)| &self.nearby_tickets[i])
             .collect()
     }
 

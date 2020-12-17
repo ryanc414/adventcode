@@ -1,74 +1,72 @@
+use itertools::Itertools;
 use std::collections::HashSet;
 use std::env;
 use std::fs;
+use std::ops::Range;
 
 fn main() {
     let input = load_input();
 
-    let active_count = find_active_count(&input, 6);
-    println!("after 6 cycles, {} cubes are active", active_count);
+    let active_count = find_active_count(&input, 6, 3);
+    println!("after 6 cycles in 3D, {} cubes are active", active_count);
+
+    let active_count = find_active_count(&input, 6, 4);
+    println!("after 6 cycles in 4D, {} cubes are active", active_count);
 }
 
 #[derive(Clone, Debug)]
 struct Grid {
-    active_cubes: HashSet<(i64, i64, i64)>,
-    ranges: Ranges,
-}
-
-#[derive(Clone, Debug)]
-struct Ranges {
-    x: (i64, i64),
-    y: (i64, i64),
-    z: (i64, i64),
+    active_cubes: HashSet<Vec<i64>>,
+    num_dimensions: usize,
+    ranges: Vec<Range<i64>>,
 }
 
 impl Grid {
-    fn parse(input: &str) -> Self {
+    fn parse(input: &str, num_dimensions: usize) -> Self {
         let lines: Vec<&str> = input.split('\n').filter(|line| !line.is_empty()).collect();
 
-        let active_cubes: HashSet<(i64, i64, i64)> = lines
+        let active_cubes: HashSet<Vec<i64>> = lines
             .iter()
             .enumerate()
-            .map(|(i, line): (usize, &&str)| -> Vec<(i64, i64, i64)> {
+            .map(|(i, line): (usize, &&str)| -> Vec<Vec<i64>> {
                 line.chars()
                     .enumerate()
                     .filter(|&(_, c)| c == '#')
-                    .map(|(j, _): (usize, char)| -> (i64, i64, i64) {
+                    .map(|(j, _): (usize, char)| -> Vec<i64> {
                         let y = lines.len() - i - 1;
-                        (j as i64, y as i64, 0)
+                        let mut coords = vec![0; num_dimensions];
+
+                        coords[0] = j as i64;
+                        coords[1] = y as i64;
+
+                        coords
                     })
                     .collect()
             })
             .flatten()
             .collect();
 
-        Self::new(active_cubes)
+        Self::new(active_cubes, num_dimensions)
     }
 
-    fn new(active_cubes: HashSet<(i64, i64, i64)>) -> Self {
-        let ranges = Self::extract_ranges(&active_cubes);
+    fn new(active_cubes: HashSet<Vec<i64>>, num_dimensions: usize) -> Self {
+        let ranges = Self::extract_ranges(&active_cubes, num_dimensions);
 
         Self {
             active_cubes,
+            num_dimensions,
             ranges,
         }
     }
 
-    fn extract_ranges(active_cubes: &HashSet<(i64, i64, i64)>) -> Ranges {
-        let x_max = active_cubes.iter().map(|&(x, _, _)| x).max().unwrap();
-        let x_min = active_cubes.iter().map(|&(x, _, _)| x).min().unwrap();
-
-        let y_max = active_cubes.iter().map(|&(_, y, _)| y).max().unwrap();
-        let y_min = active_cubes.iter().map(|&(_, y, _)| y).min().unwrap();
-
-        let z_max = active_cubes.iter().map(|&(_, _, z)| z).max().unwrap();
-        let z_min = active_cubes.iter().map(|&(_, _, z)| z).min().unwrap();
-
-        Ranges {
-            x: (x_min, x_max),
-            y: (y_min, y_max),
-            z: (z_min, z_max),
-        }
+    fn extract_ranges(active_cubes: &HashSet<Vec<i64>>, num_dimensions: usize) -> Vec<Range<i64>> {
+        (0..num_dimensions)
+            .map(|i| {
+                let min = active_cubes.iter().map(|coords| coords[i]).min().unwrap();
+                let max = active_cubes.iter().map(|coords| coords[i]).max().unwrap();
+                (min - 1)..(max + 2)
+            })
+            .collect()
     }
 
     fn num_active(&self) -> usize {
@@ -81,46 +79,38 @@ impl Grid {
         //
         // If a cube is inactive but exactly 3 of its neighbors are active, the
         // cube becomes active. Otherwise, the cube remains inactive.
+        let mut next_cubes: HashSet<Vec<i64>> = HashSet::new();
 
-        let mut next_cubes: HashSet<(i64, i64, i64)> = HashSet::new();
-
-        for x in (self.ranges.x.0 - 1)..(self.ranges.x.1 + 2) {
-            for y in (self.ranges.y.0 - 1)..(self.ranges.y.1 + 2) {
-                for z in (self.ranges.z.0 - 1)..(self.ranges.z.1 + 2) {
-                    if self.activate_next((x, y, z)) {
-                        next_cubes.insert((x, y, z));
-                    }
-                }
+        for coords in self.ranges.iter().cloned().multi_cartesian_product() {
+            if self.activate_next(&coords) {
+                next_cubes.insert(coords);
             }
         }
 
-        Self::new(next_cubes)
+        Self::new(next_cubes, self.num_dimensions)
     }
 
-    fn activate_next(&self, coords: (i64, i64, i64)) -> bool {
+    fn activate_next(&self, coords: &[i64]) -> bool {
         let active_neighbours = self.active_neighbour_count(coords);
 
-        if self.active_cubes.contains(&coords) {
+        if self.active_cubes.contains(coords) {
             active_neighbours == 2 || active_neighbours == 3
         } else {
             active_neighbours == 3
         }
     }
 
-    fn active_neighbour_count(&self, (x, y, z): (i64, i64, i64)) -> u32 {
+    fn active_neighbour_count(&self, coords: &[i64]) -> u32 {
         let mut count = 0;
 
-        for i in 0..3 {
-            for j in 0..3 {
-                for k in 0..3 {
-                    if i == 1 && j == 1 && k == 1 {
-                        continue;
-                    }
-                    let neighbour_coords = (x + i - 1, y + j - 1, z + k - 1);
-                    if self.active_cubes.contains(&neighbour_coords) {
-                        count += 1;
-                    }
-                }
+        for offset in (0..coords.len()).map(|_| 0..3).multi_cartesian_product() {
+            if offset.iter().all(|&i| i == 1) {
+                continue;
+            }
+            let neighbour_coords: Vec<i64> =
+                coords.iter().zip(offset).map(|(x, i)| x + i - 1).collect();
+            if self.active_cubes.contains(&neighbour_coords) {
+                count += 1;
             }
         }
 
@@ -128,17 +118,16 @@ impl Grid {
     }
 }
 
-fn load_input() -> Grid {
+fn load_input() -> String {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("please specify input filename");
     }
-    let contents = fs::read_to_string(&args[1]).expect("error reading input file");
-    Grid::parse(&contents)
+    fs::read_to_string(&args[1]).expect("error reading input file")
 }
 
-fn find_active_count(input: &Grid, num_cycles: usize) -> usize {
-    let mut state = input.clone();
+fn find_active_count(input: &str, num_cycles: usize, num_dimensions: usize) -> usize {
+    let mut state = Grid::parse(input, num_dimensions);
 
     for _ in 0..num_cycles {
         state = state.next_cycle();

@@ -153,7 +153,7 @@ impl TicketInfo {
         ticket
             .iter()
             .cloned()
-            .filter(|&val| !ranges.iter().any(|range| val >= range.0 && val <= range.1))
+            .filter(|&val| !ranges.iter().any(|range| Self::in_range(range, val)))
             .collect()
     }
 

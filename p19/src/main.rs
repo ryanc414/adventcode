@@ -4,9 +4,13 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let input = load_input();
-    let num_matches = find_num_matches(&input.0, &input.1);
-    println!("found {} matches", num_matches);
+    let mut input = load_input();
+    let num_matches_1 = find_num_matches(&input.0, &input.1);
+    println!("found {} matches using original rules", num_matches_1);
+
+    update_rules(&mut input.0);
+    let num_matches_2 = find_num_matches(&input.0, &input.1);
+    println!("found {} matches using updated rules", num_matches_2);
 }
 
 enum Rule {
@@ -105,32 +109,29 @@ fn find_num_matches(rules: &HashMap<usize, Rule>, messages: &[String]) -> usize 
 }
 
 fn validate_rule(all_rules: &HashMap<usize, Rule>, rule: &Rule, message: &str) -> bool {
-    match validate_rule_recur(all_rules, rule, message) {
-        Some(count) => count == message.len(),
-        None => false,
-    }
+    let counts = validate_rule_recur(all_rules, rule, message);
+    counts.iter().any(|&c| c == message.len())
 }
 
-fn validate_rule_recur(
-    all_rules: &HashMap<usize, Rule>,
-    rule: &Rule,
-    message: &str,
-) -> Option<usize> {
+fn validate_rule_recur(all_rules: &HashMap<usize, Rule>, rule: &Rule, message: &str) -> Vec<usize> {
+    if message.is_empty() {
+        return Vec::new();
+    }
+
     match rule {
         &Rule::Literal(c) => {
             if message.chars().next().unwrap() == c {
-                Some(1)
+                vec![1]
             } else {
-                None
+                Vec::new()
             }
         }
         Rule::Combination(rules) => validate_rule_combo(rules, all_rules, message),
         Rule::Option(left, right) => {
-            if let Some(count) = validate_rule_combo(left, all_rules, message) {
-                return Some(count);
-            }
-
-            validate_rule_combo(right, all_rules, message)
+            let mut left_counts = validate_rule_combo(left, all_rules, message);
+            let mut right_counts = validate_rule_combo(right, all_rules, message);
+            left_counts.append(&mut right_counts);
+            left_counts
         }
     }
 }
@@ -139,17 +140,28 @@ fn validate_rule_combo(
     rules: &[usize],
     all_rules: &HashMap<usize, Rule>,
     message: &str,
-) -> Option<usize> {
-    let mut ix = 0;
+) -> Vec<usize> {
+    let next_rule = &rules[0];
+    let rest_rules = &rules[1..];
 
-    for rule_ix in rules {
-        match validate_rule_recur(all_rules, &all_rules[rule_ix], &message[ix..]) {
-            Some(count) => {
-                ix += count;
-            }
-            None => return None,
+    let rule_counts = validate_rule_recur(all_rules, &all_rules[next_rule], message);
+    if rest_rules.is_empty() {
+        return rule_counts;
+    }
+
+    let mut all_counts: Vec<usize> = Vec::new();
+
+    for count in rule_counts {
+        let child_counts = validate_rule_combo(rest_rules, all_rules, &message[count..]);
+        for c in child_counts.iter().map(|child_count| count + child_count) {
+            all_counts.push(c);
         }
     }
 
-    Some(ix)
+    all_counts
+}
+
+fn update_rules(rules: &mut HashMap<usize, Rule>) {
+    rules.insert(8, Rule::Option(vec![42], vec![42, 8]));
+    rules.insert(11, Rule::Option(vec![42, 31], vec![42, 11, 31]));
 }

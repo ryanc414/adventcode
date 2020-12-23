@@ -6,8 +6,19 @@ use std::hash::Hash;
 
 fn main() {
     let input = load_input();
-    let corner_product = find_corner_tiles(&input);
+    let arranged = arrange_tiles(&input);
+    let corner_product = multiply_corner_ids(&arranged);
     println!("product of corners IDs is {}", corner_product);
+}
+
+fn multiply_corner_ids(tiles: &[Vec<Tile>]) -> u64 {
+    let first_row = &tiles[0];
+    let last_row = &tiles[tiles.len() - 1];
+
+    first_row[0].id
+        * first_row[first_row.len() - 1].id
+        * last_row[0].id
+        * last_row[last_row.len() - 1].id
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -32,13 +43,17 @@ struct Edge(Vec<Pixel>);
 impl Edge {
     fn new(mut pixels: Vec<Pixel>) -> Self {
         let middle = pixels.len() / 2;
-        let first_half = pixels[..middle].iter();
-        let second_half = pixels[middle..].iter().rev();
+        let first_half = pixels[..middle].to_vec();
+        let second_half: Vec<Pixel> = pixels[middle..].iter().rev().cloned().collect();
         if first_half.len() != second_half.len() {
             panic!("unequal halves");
         }
 
-        if first_half.gt(second_half) {
+        if first_half == second_half {
+            panic!("edge is a palindrome: {:?}", pixels);
+        }
+
+        if first_half > second_half {
             pixels.reverse();
         }
 
@@ -46,11 +61,131 @@ impl Edge {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct Tile {
     id: u64,
     contents: Vec<Vec<Pixel>>,
     edges: [Edge; 4],
+    size: usize,
+}
+
+impl Tile {
+    fn from_contents(contents: Vec<Vec<Pixel>>, id: u64) -> Self {
+        let top = Self::get_edge(&contents, 0);
+        let right = Self::get_edge(&contents, 1);
+        let bottom = Self::get_edge(&contents, 2);
+        let left = Self::get_edge(&contents, 3);
+
+        let size = contents.len();
+
+        Self {
+            id,
+            contents,
+            edges: [
+                Edge::new(top),
+                Edge::new(right),
+                Edge::new(bottom),
+                Edge::new(left),
+            ],
+            size,
+        }
+    }
+
+    fn get_edge(contents: &[Vec<Pixel>], edge: usize) -> Vec<Pixel> {
+        match edge {
+            0 => contents[0].to_vec(),                                       // top
+            1 => contents.iter().map(|line| line[line.len() - 1]).collect(), // right
+            2 => contents[contents.len() - 1].to_vec(),                      // bottom
+            3 => contents.iter().map(|line| line[0]).collect(),              // left
+            _ => panic!("unexpected edge index: {}", edge),
+        }
+    }
+
+    fn rotate_starting_corner(&self, edge_shares: &HashMap<&Edge, Vec<(&Tile, usize)>>) -> Self {
+        let unmatched_edges: Vec<usize> = self
+            .edges
+            .iter()
+            .enumerate()
+            .filter(|(_, edge)| edge_shares.get(edge).unwrap().len() == 1)
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(unmatched_edges.len(), 2);
+
+        if unmatched_edges[0] == 0 && unmatched_edges[1] == 3 {
+            return self.clone();
+        }
+
+        let rotations = (unmatched_edges[0] + 1) % 4;
+        self.rotate_anticlockwise(rotations)
+    }
+
+    fn rotate_and_flip(&self, match_edge: usize, edge_ix: usize, matching_tile: &Self) -> Self {
+        let required_edge = (match_edge + 2) % 4;
+        let rotations = ((edge_ix + 4) - required_edge) % 4;
+        let rotated = self.rotate_anticlockwise(rotations);
+        rotated.flip_to_match(matching_tile, match_edge)
+    }
+
+    fn rotate_anticlockwise(&self, times: usize) -> Self {
+        if times == 0 {
+            return self.clone();
+        }
+
+        let mut new_contents: Vec<Vec<Pixel>> = Vec::new();
+
+        for i in 0..self.size {
+            let mut row: Vec<Pixel> = Vec::new();
+
+            for j in 0..self.size {
+                row.push(self.contents[j][self.size - i - 1]);
+            }
+
+            new_contents.push(row);
+        }
+
+        let rotated = Self::from_contents(new_contents, self.id);
+        rotated.rotate_anticlockwise(times - 1)
+    }
+
+    fn flip_to_match(&self, other: &Self, other_edge_ix: usize) -> Self {
+        let other_edge = Self::get_edge(&other.contents, other_edge_ix);
+        let self_edge = Self::get_edge(&self.contents, (other_edge_ix + 2) % 4);
+
+        if other_edge == self_edge {
+            return self.clone();
+        }
+
+        let horizontal_flip = other_edge_ix % 2 == 0;
+        if horizontal_flip {
+            self.flip_horizontal()
+        } else {
+            self.flip_vertical()
+        }
+    }
+
+    fn flip_vertical(&self) -> Self {
+        let mut new_contents = Vec::new();
+
+        for i in 0..self.size {
+            new_contents.push(self.contents[self.size - i - 1].clone());
+        }
+
+        Self::from_contents(new_contents, self.id)
+    }
+
+    fn flip_horizontal(&self) -> Self {
+        let mut new_contents = Vec::new();
+
+        for i in 0..self.size {
+            let mut row: Vec<Pixel> = Vec::new();
+            for j in 0..self.size {
+                row.push(self.contents[i][self.size - j - 1]);
+            }
+            new_contents.push(row);
+        }
+
+        Self::from_contents(new_contents, self.id)
+    }
 }
 
 struct TileParser {
@@ -72,21 +207,7 @@ impl TileParser {
             .map(|line| line.chars().map(Pixel::parse).collect())
             .collect();
 
-        let top: Vec<Pixel> = contents[0].to_vec();
-        let bottom: Vec<Pixel> = contents[contents.len() - 1].to_vec();
-        let left: Vec<Pixel> = contents.iter().map(|line| line[0]).collect();
-        let right: Vec<Pixel> = contents.iter().map(|line| line[line.len() - 1]).collect();
-
-        Tile {
-            id,
-            contents,
-            edges: [
-                Edge::new(top),
-                Edge::new(right),
-                Edge::new(bottom),
-                Edge::new(left),
-            ],
-        }
+        Tile::from_contents(contents, id)
     }
 }
 
@@ -105,34 +226,174 @@ fn load_input() -> Vec<Tile> {
         .collect()
 }
 
-fn find_corner_tiles(tiles: &[Tile]) -> u64 {
-    let edge_shares = count_edge_shares(tiles);
-    let tiles_with_unmatched_edges = find_tiles_with_unmatched_edges(&edge_shares);
-    let corners = find_corners(&tiles_with_unmatched_edges, tiles);
+fn arrange_tiles(tiles: &[Tile]) -> Vec<Vec<Tile>> {
+    let arrangement_size = get_arrangement_size(tiles.len());
 
+    let edge_shares = find_edge_shares(tiles);
+    let tile_match_counts = count_tile_unmatched_edges(&edge_shares);
+    let corners = find_corners(&tile_match_counts);
     if corners.len() != 4 {
         panic!("expected 4 corners, got {}", corners.len())
     }
 
-    corners.iter().map(|tile| tile.id).product()
+    let ordered_tiles = order_tiles(&edge_shares, corners, arrangement_size);
+    collect_tiles(ordered_tiles, arrangement_size)
 }
 
-fn count_edge_shares(tiles: &[Tile]) -> HashMap<&Edge, Vec<(usize, usize)>> {
-    let mut edge_map: HashMap<&Edge, Vec<(usize, usize)>> = HashMap::new();
+fn get_arrangement_size(num_tiles: usize) -> usize {
+    ((num_tiles as f64).sqrt()) as usize
+}
 
-    for (i, tile) in tiles.iter().enumerate() {
-        for (j, edge) in tile.edges.iter().enumerate() {
-            edge_map.entry(edge).or_default().push((i, j));
+fn collect_tiles(
+    tile_map: HashMap<(usize, usize), Tile>,
+    arrangement_size: usize,
+) -> Vec<Vec<Tile>> {
+    let mut collected = Vec::new();
+
+    for i in 0..arrangement_size {
+        let mut row: Vec<Tile> = Vec::new();
+
+        for j in 0..arrangement_size {
+            let tile = tile_map.get(&(i, j)).unwrap();
+            row.push(tile.clone());
+        }
+
+        collected.push(row);
+    }
+
+    collected
+}
+
+fn order_tiles(
+    edge_shares: &HashMap<&Edge, Vec<(&Tile, usize)>>,
+    corners: Vec<&Tile>,
+    arrangement_size: usize,
+) -> HashMap<(usize, usize), Tile> {
+    // start withan aritrary corner.
+    let start_tile = &corners[0];
+
+    let mut tile_coords: HashMap<(usize, usize), Tile> = HashMap::new();
+    let rotated_tile = start_tile.rotate_starting_corner(edge_shares);
+
+    assert_eq!(edge_shares.get(&rotated_tile.edges[0]).unwrap().len(), 1);
+    assert_eq!(edge_shares.get(&rotated_tile.edges[1]).unwrap().len(), 2);
+    assert_eq!(edge_shares.get(&rotated_tile.edges[2]).unwrap().len(), 2);
+    assert_eq!(edge_shares.get(&rotated_tile.edges[3]).unwrap().len(), 1);
+
+    order_tiles_recur(
+        &mut tile_coords,
+        rotated_tile,
+        (0, 0),
+        edge_shares,
+        arrangement_size,
+    );
+    tile_coords
+}
+
+fn order_tiles_recur(
+    tile_coords: &mut HashMap<(usize, usize), Tile>,
+    curr_tile: Tile,
+    curr_coords: (usize, usize),
+    edge_shares: &HashMap<&Edge, Vec<(&Tile, usize)>>,
+    arrangement_size: usize,
+) {
+    tile_coords.insert(curr_coords, curr_tile.clone());
+
+    for (i, edge) in curr_tile.edges.iter().enumerate() {
+        let edge_tiles = edge_shares.get(edge).unwrap();
+
+        let neighbour_coords = match calculate_neighbour_coords(curr_coords, i, arrangement_size) {
+            Some(coords) => coords,
+            None => {
+                if edge_tiles.len() != 1 {
+                    panic!(
+                        "more than 1 tiles share edge: {} {} {:?}",
+                        edge_tiles.len(),
+                        i,
+                        curr_coords
+                    );
+                }
+
+                continue;
+            }
+        };
+
+        if tile_coords.contains_key(&neighbour_coords) {
+            continue;
+        }
+
+        if edge_tiles.len() != 2 {
+            panic!(
+                "only {} tiles share edge {} of tile {:?}",
+                edge_tiles.len(),
+                i,
+                curr_coords
+            );
+        }
+
+        let (next_tile, edge_ix) = edge_tiles
+            .iter()
+            .find(|&&(tile, _)| tile.id != curr_tile.id)
+            .unwrap();
+
+        let rotated_tile = next_tile.rotate_and_flip(i, *edge_ix, &curr_tile);
+
+        order_tiles_recur(
+            tile_coords,
+            rotated_tile,
+            neighbour_coords,
+            edge_shares,
+            arrangement_size,
+        );
+    }
+}
+
+fn in_range(coords: (usize, usize), size: usize) -> bool {
+    coords.0 < size && coords.1 < size
+}
+
+const EDGE_DIRS: [(i64, i64); 4] = [
+    (-1, 0), // top
+    (0, 1),  // right
+    (1, 0),  // down
+    (0, -1), // left
+];
+
+fn calculate_neighbour_coords(
+    curr_coords: (usize, usize),
+    edge_ix: usize,
+    size: usize,
+) -> Option<(usize, usize)> {
+    let dir = EDGE_DIRS[edge_ix];
+
+    let coords = (
+        ((curr_coords.0 as i64) + dir.0) as usize,
+        ((curr_coords.1 as i64) + dir.1) as usize,
+    );
+
+    if in_range(coords, size) {
+        Some(coords)
+    } else {
+        None
+    }
+}
+
+fn find_edge_shares(tiles: &[Tile]) -> HashMap<&Edge, Vec<(&Tile, usize)>> {
+    let mut edge_map: HashMap<&Edge, Vec<(&Tile, usize)>> = HashMap::new();
+
+    for tile in tiles {
+        for (i, edge) in tile.edges.iter().enumerate() {
+            edge_map.entry(edge).or_default().push((tile, i));
         }
     }
 
     edge_map
 }
 
-fn find_tiles_with_unmatched_edges(
-    edge_shares: &HashMap<&Edge, Vec<(usize, usize)>>,
-) -> HashMap<usize, usize> {
-    let mut tiles_unmatched_edges: HashMap<usize, usize> = HashMap::new();
+fn count_tile_unmatched_edges<'a, 'b>(
+    edge_shares: &'a HashMap<&'b Edge, Vec<(&'b Tile, usize)>>,
+) -> HashMap<&'b Tile, usize> {
+    let mut tiles_unmatched_edges: HashMap<&Tile, usize> = HashMap::new();
 
     for v in edge_shares.values() {
         if v.len() == 1 {
@@ -144,13 +405,129 @@ fn find_tiles_with_unmatched_edges(
     tiles_unmatched_edges
 }
 
-fn find_corners<'a, 'b>(
-    tiles_with_unmatched_edges: &'a HashMap<usize, usize>,
-    tiles: &'b [Tile],
-) -> Vec<&'b Tile> {
+fn find_corners<'a, 'b>(tiles_with_unmatched_edges: &'a HashMap<&'b Tile, usize>) -> Vec<&'b Tile> {
     tiles_with_unmatched_edges
         .iter()
         .filter(|&(_, &v)| v == 2)
-        .map(|(&ix, _)| &tiles[ix])
+        .map(|(&tile, _)| tile)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rotate_tile() {
+        let parser = TileParser::new();
+
+        let tile = parser.parse(
+            "Tile 1:
+####
+#...
+#...
+#...",
+        );
+        assert_eq!(tile.size, 4);
+
+        let expected = parser.parse(
+            "Tile 1:
+#...
+#...
+#...
+####",
+        );
+        assert_eq!(expected.size, 4);
+
+        let rotated = tile.rotate_anticlockwise(1);
+        assert_eq!(rotated, expected);
+    }
+
+    #[test]
+    fn test_flip_vertical() {
+        let parser = TileParser::new();
+
+        let tile = parser.parse(
+            "Tile 1:
+####
+#...
+#...
+#...",
+        );
+        assert_eq!(tile.size, 4);
+
+        let expected = parser.parse(
+            "Tile 1:
+#...
+#...
+#...
+####",
+        );
+        assert_eq!(expected.size, 4);
+
+        let flipped = tile.flip_vertical();
+        assert_eq!(flipped, expected);
+    }
+
+    #[test]
+    fn test_flip_horizontal() {
+        let parser = TileParser::new();
+
+        let tile = parser.parse(
+            "Tile 1:
+####
+#...
+#...
+#...",
+        );
+        assert_eq!(tile.size, 4);
+
+        let expected = parser.parse(
+            "Tile 1:
+####
+...#
+...#
+...#",
+        );
+        assert_eq!(expected.size, 4);
+
+        let flipped = tile.flip_horizontal();
+        assert_eq!(flipped, expected);
+    }
+
+    #[test]
+    fn test_flip_to_match() {
+        let parser = TileParser::new();
+
+        let tile = parser.parse(
+            "Tile 1:
+####
+#...
+#...
+#...",
+        );
+        assert_eq!(tile.size, 4);
+
+        let other = parser.parse(
+            "Tile 2:
+###.
+.#..
+.#..
+.#.#",
+        );
+        assert_eq!(other.size, 4);
+
+        let original_rotated = tile.flip_to_match(&other, 1);
+
+        let expected = parser.parse(
+            "Tile 1:
+####
+...#
+...#
+...#",
+        );
+        assert_eq!(tile.size, 4);
+
+        assert_eq!(original_rotated, expected);
+    }
 }

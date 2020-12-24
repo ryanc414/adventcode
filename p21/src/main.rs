@@ -6,8 +6,16 @@ use std::fs;
 fn main() {
     let input = load_input();
 
-    let count = count_non_allergen_ingredients(&input);
+    let mut allergen_possibles = find_allergen_possibles(&input);
+
+    let count = count_non_allergen_ingredients(&input, &allergen_possibles);
     println!("non-allergenic ingredients appear {} times", count);
+
+    let dangerous_ingredients = find_dangerous_ingredients(&mut allergen_possibles);
+    println!(
+        "canonical dangerous ingredients list is {}",
+        dangerous_ingredients
+    );
 }
 
 struct IngredientsList {
@@ -53,9 +61,11 @@ fn load_input() -> Vec<IngredientsList> {
         .collect()
 }
 
-fn count_non_allergen_ingredients(foods: &[IngredientsList]) -> usize {
-    let allergen_possibles = find_allergen_possibles(foods);
-    let possibly_allergic = possible_allergic_ingredients(&allergen_possibles);
+fn count_non_allergen_ingredients(
+    foods: &[IngredientsList],
+    allergen_possibles: &HashMap<&str, HashSet<&str>>,
+) -> usize {
+    let possibly_allergic = possible_allergic_ingredients(allergen_possibles);
     count_non_allergic(foods, &possibly_allergic)
 }
 
@@ -101,4 +111,93 @@ fn count_non_allergic(foods: &[IngredientsList], possible_allergic: &HashSet<&st
                 .count()
         })
         .sum()
+}
+
+fn find_dangerous_ingredients<'a>(
+    allergen_possibles: &mut HashMap<&'a str, HashSet<&'a str>>,
+) -> String {
+    let dangerous_ingredients = deduce_dangerous_ingredients(allergen_possibles);
+    canonical_list(dangerous_ingredients)
+}
+
+struct AllergenPair<'a> {
+    allergen: &'a str,
+    ingredient: &'a str,
+}
+
+fn deduce_dangerous_ingredients<'a>(
+    allergen_possibles: &mut HashMap<&'a str, HashSet<&'a str>>,
+) -> Vec<AllergenPair<'a>> {
+    let allergens: Vec<&str> = allergen_possibles.keys().cloned().collect();
+
+    for k in allergens.iter() {
+        if let Some(ingredient) = get_lone_ingredient(allergen_possibles, k) {
+            remove_possibility_recur(allergen_possibles, &allergens, k, ingredient);
+        }
+    }
+
+    if !allergen_possibles.values().all(|set| set.len() == 1) {
+        panic!("could not deduce a unique solution");
+    }
+
+    allergen_possibles
+        .iter()
+        .map(|(k, v)| AllergenPair {
+            allergen: k,
+            ingredient: v.iter().next().unwrap(),
+        })
+        .collect()
+}
+
+fn get_lone_ingredient<'a>(
+    allergen_possibles: &HashMap<&str, HashSet<&'a str>>,
+    allergen: &str,
+) -> Option<&'a str> {
+    let v = allergen_possibles.get(allergen).unwrap();
+    if v.len() == 1 {
+        Some(v.iter().next().unwrap())
+    } else {
+        None
+    }
+}
+
+fn remove_possibility_recur(
+    allergen_possibles: &mut HashMap<&str, HashSet<&str>>,
+    all_allergens: &[&str],
+    allergen: &str,
+    ingredient: &str,
+) {
+    for &k in all_allergens {
+        if k == allergen {
+            continue;
+        }
+
+        if let Some(other_ingredient) = remove_ingredient(allergen_possibles, k, ingredient) {
+            remove_possibility_recur(allergen_possibles, all_allergens, k, other_ingredient);
+        }
+    }
+}
+
+fn remove_ingredient<'a>(
+    allergen_possibles: &mut HashMap<&str, HashSet<&'a str>>,
+    allergen: &str,
+    ingredient: &str,
+) -> Option<&'a str> {
+    let v = allergen_possibles.get_mut(allergen).unwrap();
+    let removed = v.remove(ingredient);
+
+    if removed && v.len() == 1 {
+        Some(v.iter().next().unwrap())
+    } else {
+        None
+    }
+}
+
+fn canonical_list(mut dangerous_ingredients: Vec<AllergenPair>) -> String {
+    dangerous_ingredients.sort_by_key(|pair| pair.allergen);
+    dangerous_ingredients
+        .into_iter()
+        .map(|pair| pair.ingredient)
+        .collect::<Vec<&str>>()
+        .join(",")
 }

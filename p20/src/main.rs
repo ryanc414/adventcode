@@ -7,8 +7,12 @@ use std::hash::Hash;
 fn main() {
     let input = load_input();
     let arranged = arrange_tiles(&input);
+
     let corner_product = multiply_corner_ids(&arranged);
     println!("product of corners IDs is {}", corner_product);
+
+    let roughness = find_water_roughness(arranged);
+    println!("water roughness: {}", roughness);
 }
 
 fn multiply_corner_ids(tiles: &[Vec<Tile>]) -> u64 {
@@ -35,6 +39,13 @@ impl Pixel {
             _ => panic!("cannot parse {} as a pixel", c),
         }
     }
+
+    fn to_char(&self) -> char {
+        match self {
+            Self::One => '#',
+            Self::Zero => '.',
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -47,10 +58,6 @@ impl Edge {
         let second_half: Vec<Pixel> = pixels[middle..].iter().rev().cloned().collect();
         if first_half.len() != second_half.len() {
             panic!("unequal halves");
-        }
-
-        if first_half == second_half {
-            panic!("edge is a palindrome: {:?}", pixels);
         }
 
         if first_half > second_half {
@@ -127,24 +134,8 @@ impl Tile {
     }
 
     fn rotate_anticlockwise(&self, times: usize) -> Self {
-        if times == 0 {
-            return self.clone();
-        }
-
-        let mut new_contents: Vec<Vec<Pixel>> = Vec::new();
-
-        for i in 0..self.size {
-            let mut row: Vec<Pixel> = Vec::new();
-
-            for j in 0..self.size {
-                row.push(self.contents[j][self.size - i - 1]);
-            }
-
-            new_contents.push(row);
-        }
-
-        let rotated = Self::from_contents(new_contents, self.id);
-        rotated.rotate_anticlockwise(times - 1)
+        let rotated = rotate_anticlockwise(&self.contents, self.size, times);
+        Self::from_contents(rotated, self.id)
     }
 
     fn flip_to_match(&self, other: &Self, other_edge_ix: usize) -> Self {
@@ -156,36 +147,68 @@ impl Tile {
         }
 
         let horizontal_flip = other_edge_ix % 2 == 0;
-        if horizontal_flip {
-            self.flip_horizontal()
+
+        let flipped = if horizontal_flip {
+            flip_horizontal(&self.contents, self.size)
         } else {
-            self.flip_vertical()
-        }
+            flip_vertical(&self.contents, self.size)
+        };
+
+        Self::from_contents(flipped, self.id)
     }
 
-    fn flip_vertical(&self) -> Self {
-        let mut new_contents = Vec::new();
-
-        for i in 0..self.size {
-            new_contents.push(self.contents[self.size - i - 1].clone());
-        }
+    fn strip_edges(&self) -> Self {
+        let new_contents = self.contents[1..(self.size - 1)]
+            .iter()
+            .map(|row| row[1..(self.size - 1)].to_vec())
+            .collect();
 
         Self::from_contents(new_contents, self.id)
     }
+}
 
-    fn flip_horizontal(&self) -> Self {
-        let mut new_contents = Vec::new();
+fn rotate_anticlockwise(pixels: &[Vec<Pixel>], size: usize, times: usize) -> Vec<Vec<Pixel>> {
+    if times == 0 {
+        return pixels.to_vec();
+    }
 
-        for i in 0..self.size {
-            let mut row: Vec<Pixel> = Vec::new();
-            for j in 0..self.size {
-                row.push(self.contents[i][self.size - j - 1]);
-            }
-            new_contents.push(row);
+    let mut new_contents: Vec<Vec<Pixel>> = Vec::new();
+
+    for i in 0..size {
+        let mut row: Vec<Pixel> = Vec::new();
+
+        for j in 0..size {
+            row.push(pixels[j][size - i - 1]);
         }
 
-        Self::from_contents(new_contents, self.id)
+        new_contents.push(row);
     }
+
+    rotate_anticlockwise(&new_contents, size, times - 1)
+}
+
+fn flip_vertical(pixels: &[Vec<Pixel>], size: usize) -> Vec<Vec<Pixel>> {
+    let mut new_contents = Vec::new();
+
+    for i in 0..size {
+        new_contents.push(pixels[size - i - 1].clone());
+    }
+
+    new_contents
+}
+
+fn flip_horizontal(pixels: &[Vec<Pixel>], size: usize) -> Vec<Vec<Pixel>> {
+    let mut new_contents = Vec::new();
+
+    for i in 0..size {
+        let mut row: Vec<Pixel> = Vec::new();
+        for j in 0..size {
+            row.push(pixels[i][size - j - 1]);
+        }
+        new_contents.push(row);
+    }
+
+    new_contents
 }
 
 struct TileParser {
@@ -413,6 +436,167 @@ fn find_corners<'a, 'b>(tiles_with_unmatched_edges: &'a HashMap<&'b Tile, usize>
         .collect()
 }
 
+fn find_water_roughness(tiles: Vec<Vec<Tile>>) -> usize {
+    let image = strip_edges_and_merge(tiles);
+    let mut monsters_removed = image.clone();
+
+    for rotation in 0..4 {
+        for flip in 0..4 {
+            let monster = rotate_flip_monster(rotation, flip);
+            remove_monsters(&image, &mut monsters_removed, &monster);
+        }
+    }
+
+    count_pixels(&monsters_removed)
+}
+
+// Monster looks like:
+//
+//                   #    18
+// #    ##    ##    ###   0,5,6,11,12,17,18,19
+//  #  #  #  #  #  #      1,4,7,10,13,16
+const MONSTER_INDICES: [(isize, isize); 15] = [
+    (0, 0),
+    (-1, 18),
+    (0, 5),
+    (0, 6),
+    (0, 11),
+    (0, 12),
+    (0, 17),
+    (0, 18),
+    (0, 19),
+    (1, 1),
+    (1, 4),
+    (1, 7),
+    (1, 10),
+    (1, 13),
+    (1, 16),
+];
+
+fn rotate_flip_monster(rotation: usize, flip: usize) -> Vec<(isize, isize)> {
+    let monster = rotate_monster(rotation, MONSTER_INDICES.to_vec());
+
+    match flip {
+        0 => monster,
+        1 => flip_monster_horizontal(monster),
+        2 => flip_monster_vertical(monster),
+        3 => {
+            let flipped = flip_monster_horizontal(monster);
+            flip_monster_vertical(flipped)
+        }
+        _ => panic!("unexpected flip index {}", flip),
+    }
+}
+
+fn rotate_monster(rotation: usize, monster: Vec<(isize, isize)>) -> Vec<(isize, isize)> {
+    if rotation == 0 {
+        return monster;
+    }
+
+    let rotated = monster.into_iter().map(|(i, j)| (j, -i)).collect();
+    rotate_monster(rotation - 1, rotated)
+}
+
+fn flip_monster_horizontal(monster: Vec<(isize, isize)>) -> Vec<(isize, isize)> {
+    monster.into_iter().map(|(i, j)| (i, -j)).collect()
+}
+
+fn flip_monster_vertical(monster: Vec<(isize, isize)>) -> Vec<(isize, isize)> {
+    monster.into_iter().map(|(i, j)| (-i, j)).collect()
+}
+
+fn remove_monsters(
+    image: &[Vec<Pixel>],
+    monsters_removed: &mut [Vec<Pixel>],
+    monster: &[(isize, isize)],
+) {
+    for i in 0..image.len() {
+        for j in 0..image[i].len() {
+            if found_monster(image, (i, j), monster) {
+                remove_monster(monsters_removed, (i, j), monster);
+            }
+        }
+    }
+}
+
+fn found_monster(image: &[Vec<Pixel>], (i, j): (usize, usize), monster: &[(isize, isize)]) -> bool {
+    for &(x, y) in monster.iter() {
+        let u = ((i as isize) + x) as usize;
+        let v = ((j as isize) + y) as usize;
+
+        if !valid_coords((u, v), image.len()) {
+            return false;
+        }
+
+        if image[u][v] != Pixel::One {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn valid_coords((i, j): (usize, usize), size: usize) -> bool {
+    i < size && j < size
+}
+
+fn remove_monster(
+    monsters_removed: &mut [Vec<Pixel>],
+    (i, j): (usize, usize),
+    monster: &[(isize, isize)],
+) {
+    for &(x, y) in monster {
+        let u = ((i as isize) + x) as usize;
+        let v = ((j as isize) + y) as usize;
+
+        monsters_removed[u][v] = Pixel::Zero;
+    }
+}
+
+fn count_pixels(image: &[Vec<Pixel>]) -> usize {
+    image
+        .iter()
+        .map(|row| row.iter().filter(|&&pixel| pixel == Pixel::One).count())
+        .sum()
+}
+
+fn strip_edges_and_merge(tiles: Vec<Vec<Tile>>) -> Vec<Vec<Pixel>> {
+    let stripped = strip_edges(tiles);
+    merge_tiles(stripped)
+}
+
+fn strip_edges(tiles: Vec<Vec<Tile>>) -> Vec<Vec<Tile>> {
+    tiles
+        .into_iter()
+        .map(|row| row.into_iter().map(|tile| tile.strip_edges()).collect())
+        .collect()
+}
+
+fn merge_tiles(tiles: Vec<Vec<Tile>>) -> Vec<Vec<Pixel>> {
+    let mut merged = Vec::new();
+
+    for tile_row in tiles {
+        for i in 0..tile_row[0].size {
+            let mut next_pixel_row: Vec<Pixel> = Vec::new();
+            for pixel_row in tile_row.iter().map(|tile| &tile.contents[i]) {
+                next_pixel_row.append(&mut pixel_row.clone());
+            }
+            merged.push(next_pixel_row);
+        }
+    }
+
+    merged
+}
+
+// fn pixels_to_string(pixels: Vec<Vec<Pixel>>) -> String {
+//     let rows: Vec<String> = pixels
+//         .into_iter()
+//         .map(|row| row.into_iter().map(|pixel| pixel.to_char()).collect())
+//         .collect();
+
+//     rows.join("\n")
+// }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -465,8 +649,8 @@ mod tests {
         );
         assert_eq!(expected.size, 4);
 
-        let flipped = tile.flip_vertical();
-        assert_eq!(flipped, expected);
+        let flipped = flip_vertical(&tile.contents, tile.size);
+        assert_eq!(flipped, expected.contents);
     }
 
     #[test]
@@ -491,43 +675,7 @@ mod tests {
         );
         assert_eq!(expected.size, 4);
 
-        let flipped = tile.flip_horizontal();
-        assert_eq!(flipped, expected);
-    }
-
-    #[test]
-    fn test_flip_to_match() {
-        let parser = TileParser::new();
-
-        let tile = parser.parse(
-            "Tile 1:
-####
-#...
-#...
-#...",
-        );
-        assert_eq!(tile.size, 4);
-
-        let other = parser.parse(
-            "Tile 2:
-###.
-.#..
-.#..
-.#.#",
-        );
-        assert_eq!(other.size, 4);
-
-        let original_rotated = tile.flip_to_match(&other, 1);
-
-        let expected = parser.parse(
-            "Tile 1:
-####
-...#
-...#
-...#",
-        );
-        assert_eq!(tile.size, 4);
-
-        assert_eq!(original_rotated, expected);
+        let flipped = flip_horizontal(&tile.contents, tile.size);
+        assert_eq!(flipped, expected.contents);
     }
 }

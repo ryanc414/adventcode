@@ -1,13 +1,16 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 
 fn main() {
-    let (cups, num_moves) = load_input();
+    let cups = load_input();
 
-    let final_labels = find_final_labels(&cups, num_moves);
+    let final_labels = find_final_labels(&cups, 100);
+    println!("after 100 moves the final cup labels are {}", final_labels);
+
+    let product = find_final_product(&cups, 1000000, 10000000);
     println!(
-        "after {} moves the final cup labels are {}",
-        num_moves, final_labels
+        "after 10,000,000 moves, the product of the labels after 1 is {}",
+        product
     );
 }
 
@@ -19,8 +22,7 @@ struct CupCircle {
 }
 
 impl CupCircle {
-    fn parse(input: &str) -> Self {
-        let labels: Vec<u32> = input.chars().map(|c| (c as u32) - ('0' as u32)).collect();
+    fn from_labels(labels: &[u32]) -> Self {
         let cups: HashMap<u32, u32> = labels
             .iter()
             .enumerate()
@@ -37,6 +39,30 @@ impl CupCircle {
         }
     }
 
+    fn start_from_labels(labels: &[u32], limit: u32) -> Self {
+        let mut cups: HashMap<u32, u32> = labels
+            .iter()
+            .take(labels.len() - 1)
+            .enumerate()
+            .map(|(i, &l)| (l, labels[i + 1]))
+            .collect();
+
+        let min_cup = *cups.keys().min().unwrap();
+        let max_cup = *cups.keys().max().unwrap();
+        cups.insert(labels[labels.len() - 1], max_cup + 1);
+
+        for i in (max_cup + 1)..limit {
+            cups.insert(i, i + 1);
+        }
+        cups.insert(limit, labels[0]);
+
+        Self {
+            cups,
+            curr_cup: labels[0],
+            range: (min_cup, limit),
+        }
+    }
+
     fn simulate_move(&mut self) {
         let (picked_cups, next_cup) = self.pop_next_cups();
         self.cups.insert(self.curr_cup, next_cup);
@@ -45,6 +71,7 @@ impl CupCircle {
         self.insert_after(destination_cup, picked_cups);
 
         self.curr_cup = *self.cups.get(&self.curr_cup).unwrap();
+        // self.check_integrity();
     }
 
     fn pop_next_cups(&mut self) -> (Vec<u32>, u32) {
@@ -57,6 +84,18 @@ impl CupCircle {
         }
 
         (picked_cups, cup)
+    }
+
+    fn check_integrity(&self) {
+        let mut cup = self.curr_cup;
+        let mut seen_cups: HashSet<u32> = HashSet::new();
+
+        while !seen_cups.contains(&cup) {
+            seen_cups.insert(cup);
+            cup = *self.cups.get(&cup).unwrap();
+        }
+
+        assert_eq!(seen_cups.len(), self.cups.len());
     }
 
     fn find_destination_cup(&self, curr_cup: u32, picked_cups: &[u32]) -> u32 {
@@ -96,23 +135,41 @@ impl CupCircle {
 
         cup_labels
     }
+
+    fn neighbours_product(&self) -> u64 {
+        let cup_1 = *self.cups.get(&1).unwrap();
+        let cup_2 = *self.cups.get(&cup_1).unwrap();
+        println!("neighbours: {}, {}", cup_1, cup_2);
+
+        (cup_1 as u64) * (cup_2 as u64)
+    }
 }
 
-fn load_input() -> (CupCircle, usize) {
+fn load_input() -> Vec<u32> {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 3 {
+    if args.len() != 2 {
         panic!("please specify input cup labels and number of moves")
     }
 
-    (CupCircle::parse(&args[1]), args[2].parse().unwrap())
+    args[1].chars().map(|c| (c as u32) - ('0' as u32)).collect()
 }
 
-fn find_final_labels(initial_cups: &CupCircle, num_moves: usize) -> String {
-    let mut cups: CupCircle = initial_cups.clone();
+fn find_final_labels(cup_labels: &[u32], num_moves: usize) -> String {
+    let mut cups = CupCircle::from_labels(cup_labels);
 
     for _ in 0..num_moves {
         cups.simulate_move();
     }
 
     cups.collect_labels()
+}
+
+fn find_final_product(cup_labels: &[u32], num_cups: u32, num_moves: usize) -> u64 {
+    let mut cups = CupCircle::start_from_labels(cup_labels, num_cups);
+
+    for _ in 0..num_moves {
+        cups.simulate_move();
+    }
+
+    cups.neighbours_product()
 }

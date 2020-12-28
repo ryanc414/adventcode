@@ -1,12 +1,18 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 
 fn main() {
     let input = load_input();
 
-    let count = count_black_tiles(&input);
-    println!("{} black tiles are flipped", count);
+    let black_tiles = initial_black_tiles(&input);
+    println!("{} black tiles are flipped", black_tiles.len());
+
+    let final_tiles = simulate_days(black_tiles, 100);
+    println!(
+        "{} black tiles are flipped after 100 days",
+        final_tiles.len()
+    );
 }
 
 enum Direction {
@@ -60,7 +66,7 @@ fn parse_directions(line: &str) -> Vec<Direction> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct NormalisedDirections {
     north_east: isize,
     east: isize,
@@ -92,6 +98,42 @@ impl NormalisedDirections {
 
         normalised
     }
+
+    fn neighbours(&self) -> [Self; 6] {
+        [
+            Self {
+                north_east: self.north_east + 1,
+                east: self.east,
+            },
+            Self {
+                north_east: self.north_east - 1,
+                east: self.east,
+            },
+            Self {
+                north_east: self.north_east,
+                east: self.east + 1,
+            },
+            Self {
+                north_east: self.north_east,
+                east: self.east - 1,
+            },
+            Self {
+                north_east: self.north_east + 1,
+                east: self.east - 1,
+            },
+            Self {
+                north_east: self.north_east - 1,
+                east: self.east + 1,
+            },
+        ]
+    }
+
+    fn black_neighbours_count(&self, black_tiles: &HashSet<Self>) -> usize {
+        self.neighbours()
+            .iter()
+            .filter(|neighbour| black_tiles.contains(neighbour))
+            .count()
+    }
 }
 
 fn normalise_directions(directions: &[Vec<Direction>]) -> Vec<NormalisedDirections> {
@@ -101,14 +143,49 @@ fn normalise_directions(directions: &[Vec<Direction>]) -> Vec<NormalisedDirectio
         .collect()
 }
 
-fn count_black_tiles(directions: &[Vec<Direction>]) -> usize {
+fn initial_black_tiles(directions: &[Vec<Direction>]) -> HashSet<NormalisedDirections> {
     let normalised = normalise_directions(directions);
 
-    let mut flip_counts: HashMap<NormalisedDirections, usize> = HashMap::new();
+    let mut black_tiles: HashSet<NormalisedDirections> = HashSet::new();
     for dir in normalised {
-        let counter = flip_counts.entry(dir).or_default();
-        *counter += 1;
+        if black_tiles.contains(&dir) {
+            black_tiles.remove(&dir);
+        } else {
+            black_tiles.insert(dir);
+        }
     }
 
-    flip_counts.values().filter(|&count| count % 2 == 1).count()
+    black_tiles
+}
+
+fn simulate_days(
+    mut black_tiles: HashSet<NormalisedDirections>,
+    num_days: usize,
+) -> HashSet<NormalisedDirections> {
+    for _ in 0..num_days {
+        black_tiles = simulate_day(black_tiles);
+    }
+
+    black_tiles
+}
+
+fn simulate_day(black_tiles: HashSet<NormalisedDirections>) -> HashSet<NormalisedDirections> {
+    let mut updated_tiles = black_tiles.clone();
+
+    for tile in black_tiles.iter() {
+        for neighbour in tile.neighbours().iter() {
+            if !black_tiles.contains(neighbour)
+                && neighbour.black_neighbours_count(&black_tiles) == 2
+            {
+                updated_tiles.insert(*neighbour);
+            }
+        }
+
+        let count = tile.black_neighbours_count(&black_tiles);
+        if count == 0 || count > 2 {
+            updated_tiles.remove(&tile);
+        }
+    }
+
+    updated_tiles
 }

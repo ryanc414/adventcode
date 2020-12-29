@@ -194,9 +194,9 @@ mod tests {
         let cups = vec![9, 1, 6, 4, 3, 8, 2, 7, 5];
 
         let final_labels = find_final_labels(&cups, 100);
-        assert_eq!(final_labels, "67384529");
+        assert_eq!(final_labels, "39564287");
 
         let product = find_final_product(&cups, 1000000, 10000000);
-        assert_eq!(product, 149245887792);
+        assert_eq!(product, 404431096944);
     }
 }

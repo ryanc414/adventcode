@@ -5,7 +5,8 @@ use std::fs;
 const TARGET: i32 = 2020;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
     let input_set: HashSet<i32> = input.iter().cloned().collect();
 
     match find_two_multiple(&input, &input_set) {
@@ -19,13 +20,16 @@ fn main() {
     }
 }
 
-fn load_input() -> Vec<i32> {
-    let args: Vec<String> = env::args().collect();
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("please specify input filename");
     }
-    let filename = &args[1];
-    let contents = fs::read_to_string(filename).expect("Error reading the file");
+    args.remove(1)
+}
+
+fn load_input(filename: &str) -> Vec<i32> {
+    let contents = fs::read_to_string(filename).expect("error reading the file");
 
     contents
         .split('\n')
@@ -73,4 +77,33 @@ fn find_two_sum(input: &[i32], input_set: &HashSet<i32>, target: i32) -> Option<
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+        let input_set: HashSet<i32> = input.iter().cloned().collect();
+
+        let res = find_two_multiple(&input, &input_set);
+        assert_eq!(res, Some(514579));
+
+        let res = find_three_multiple(&input, &input_set);
+        assert_eq!(res, Some(241861950));
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+        let input_set: HashSet<i32> = input.iter().cloned().collect();
+
+        let res = find_two_multiple(&input, &input_set);
+        assert_eq!(res, Some(913824));
+
+        let res = find_three_multiple(&input, &input_set);
+        assert_eq!(res, Some(240889536));
+    }
 }

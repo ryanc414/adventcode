@@ -3,13 +3,22 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let acc_1 = find_acc_at_loop(&input);
     println!("just before loop begins, acc was {}", acc_1);
 
     let acc_2 = find_acc_at_termination(&input);
     println!("at termination, acc was {}", acc_2);
+}
+
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+    args.remove(1)
 }
 
 struct Instruction {
@@ -42,13 +51,7 @@ enum Command {
     Acc,
 }
 
-fn load_input() -> Vec<Instruction> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-
-    let filename = &args[1];
+fn load_input(filename: &str) -> Vec<Instruction> {
     let contents = fs::read_to_string(filename).expect("error reading the file");
 
     contents
@@ -171,5 +174,32 @@ fn run_to_term_or_loop(
         Some(state)
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let acc = find_acc_at_loop(&input);
+        assert_eq!(acc, 5);
+
+        let acc = find_acc_at_termination(&input);
+        assert_eq!(acc, 8);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let acc = find_acc_at_loop(&input);
+        assert_eq!(acc, 1610);
+
+        let acc = find_acc_at_termination(&input);
+        assert_eq!(acc, 1703);
     }
 }

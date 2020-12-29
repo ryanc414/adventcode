@@ -5,13 +5,23 @@ use std::fs;
 use std::ops::Range;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = fs::read_to_string(filename).expect("error reading input file");
 
     let active_count = find_active_count(&input, 6, 3);
     println!("after 6 cycles in 3D, {} cubes are active", active_count);
 
     let active_count = find_active_count(&input, 6, 4);
     println!("after 6 cycles in 4D, {} cubes are active", active_count);
+}
+
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+
+    args.remove(1)
 }
 
 #[derive(Clone, Debug)]
@@ -118,14 +128,6 @@ impl Grid {
     }
 }
 
-fn load_input() -> String {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-    fs::read_to_string(&args[1]).expect("error reading input file")
-}
-
 fn find_active_count(input: &str, num_cycles: usize, num_dimensions: usize) -> usize {
     let mut state = Grid::parse(input, num_dimensions);
 
@@ -134,4 +136,31 @@ fn find_active_count(input: &str, num_cycles: usize, num_dimensions: usize) -> u
     }
 
     state.num_active()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = fs::read_to_string("basic_input.txt").unwrap();
+
+        let active_count = find_active_count(&input, 6, 3);
+        assert_eq!(active_count, 112);
+
+        let active_count = find_active_count(&input, 6, 4);
+        assert_eq!(active_count, 848);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = fs::read_to_string("full_input.txt").unwrap();
+
+        let active_count = find_active_count(&input, 6, 3);
+        assert_eq!(active_count, 291);
+
+        let active_count = find_active_count(&input, 6, 4);
+        assert_eq!(active_count, 1524);
+    }
 }

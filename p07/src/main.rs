@@ -5,7 +5,8 @@ use std::fs;
 use std::iter::FromIterator;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let &root = input.bags_by_name.get("shiny gold").unwrap();
 
@@ -14,6 +15,14 @@ fn main() {
 
     let num_children = input.count_children(root);
     println!("shiny gold bag must contain {} other bags", num_children);
+}
+
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+    args.remove(1)
 }
 
 struct BagGraph {
@@ -119,17 +128,42 @@ struct ChildInfo {
     index: usize,
 }
 
-fn load_input() -> BagGraph {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-
-    let filename = &args[1];
+fn load_input(filename: &str) -> BagGraph {
     let contents = fs::read_to_string(filename).expect("error reading the file");
 
     contents
         .split('\n')
         .filter(|line| !line.is_empty())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let &root = input.bags_by_name.get("shiny gold").unwrap();
+
+        let num_parents = input.find_parents(root).len();
+        assert_eq!(num_parents, 4);
+
+        let num_children = input.count_children(root);
+        assert_eq!(num_children, 32);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let &root = input.bags_by_name.get("shiny gold").unwrap();
+
+        let num_parents = input.find_parents(root).len();
+        assert_eq!(num_parents, 164);
+
+        let num_children = input.count_children(root);
+        assert_eq!(num_children, 7872);
+    }
 }

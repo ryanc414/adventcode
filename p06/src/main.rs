@@ -4,7 +4,9 @@ use std::iter::FromIterator;
 use std::ops::{BitAnd, BitOr};
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
+
     let sum_1 = sum_all_counts(&input);
     println!("sum of all group counts is {}", sum_1);
 
@@ -12,13 +14,15 @@ fn main() {
     println!("sum of shared group counts is {}", sum_2);
 }
 
-fn load_input() -> Vec<Vec<AlphabetSet>> {
-    let args: Vec<String> = env::args().collect();
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("please specify input filename");
     }
+    args.remove(1)
+}
 
-    let filename = &args[1];
+fn load_input(filename: &str) -> Vec<Vec<AlphabetSet>> {
     let contents = fs::read_to_string(filename).expect("error reading the file");
 
     contents
@@ -118,4 +122,31 @@ fn count_shared(group: &[AlphabetSet]) -> usize {
             shared_answers & person
         })
         .len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let sum = sum_all_counts(&input);
+        assert_eq!(sum, 11);
+
+        let sum = sum_shared_counts(&input);
+        assert_eq!(sum, 6);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let sum = sum_all_counts(&input);
+        assert_eq!(sum, 6249);
+
+        let sum = sum_shared_counts(&input);
+        assert_eq!(sum, 3103);
+    }
 }

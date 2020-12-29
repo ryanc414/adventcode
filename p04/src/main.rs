@@ -6,7 +6,37 @@ use std::fs;
 type ValidatorFn = Box<dyn Fn(&str) -> bool>;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
+
+    let [simple_validation_rules, full_validation_rules] = build_validation_rules();
+
+    let count_1 = count_valid(&input, &simple_validation_rules);
+    println!("counted {} valid passports with simple scheme", count_1);
+
+    let count_2 = count_valid(&input, &full_validation_rules);
+    println!("counted {} valid passports with full scheme", count_2);
+}
+
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+    args.remove(1)
+}
+
+fn load_input(filename: &str) -> Vec<HashMap<String, String>> {
+    let contents = fs::read_to_string(filename).expect("error reading the file");
+
+    contents
+        .split("\n\n")
+        .filter(|line| !line.is_empty())
+        .map(parse_line)
+        .collect()
+}
+
+fn build_validation_rules() -> [HashMap<&'static str, ValidatorFn>; 2] {
     let hair_colour_re = Regex::new(r"^#[0-9a-f]{6}$").unwrap();
     let passport_id_re = Regex::new(r"^\d{9}$").unwrap();
 
@@ -30,27 +60,7 @@ fn main() {
         .map(|(&key, _)| -> (&str, ValidatorFn) { (key, Box::new(|val| !val.is_empty())) })
         .collect();
 
-    let count_1 = count_valid(&input, &simple_validation_rules);
-    println!("counted {} valid passports with simple scheme", count_1);
-
-    let count_2 = count_valid(&input, &full_validation_rules);
-    println!("counted {} valid passports with full scheme", count_2);
-}
-
-fn load_input() -> Vec<HashMap<String, String>> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-
-    let filename = &args[1];
-    let contents = fs::read_to_string(filename).expect("error reading the file");
-
-    contents
-        .split("\n\n")
-        .filter(|line| !line.is_empty())
-        .map(parse_line)
-        .collect()
+    [simple_validation_rules, full_validation_rules]
 }
 
 fn parse_line(line: &str) -> HashMap<String, String> {
@@ -131,4 +141,35 @@ fn validate_height(input: &str) -> bool {
 
 fn validate_eye_colour(input: &str) -> bool {
     matches!(input, "amb" | "blu" | "brn" | "gry" | "grn" | "hzl" | "oth")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let [simple_validation_rules, full_validation_rules] = build_validation_rules();
+
+        let res = count_valid(&input, &simple_validation_rules);
+        assert_eq!(res, 2);
+
+        let res = count_valid(&input, &full_validation_rules);
+        assert_eq!(res, 2);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let [simple_validation_rules, full_validation_rules] = build_validation_rules();
+
+        let res = count_valid(&input, &simple_validation_rules);
+        assert_eq!(res, 228);
+
+        let res = count_valid(&input, &full_validation_rules);
+        assert_eq!(res, 175);
+    }
 }

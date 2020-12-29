@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::env;
 
 fn main() {
-    let input = load_input();
+    let input = parse_args();
 
     let number_1 = get_nth_number(&input, 2020);
     println!("2020th spoken number is {}", number_1);
@@ -11,7 +11,7 @@ fn main() {
     println!("30000000th spoken number is {}", number_2);
 }
 
-fn load_input() -> Vec<usize> {
+fn parse_args() -> Vec<usize> {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("please specify comma-separated list of starter numbers");
@@ -45,4 +45,31 @@ fn get_nth_number(starter_nums: &[usize], target_n: usize) -> usize {
     }
 
     last_num
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = vec![1, 3, 2];
+
+        let num = get_nth_number(&input, 2020);
+        assert_eq!(num, 1);
+
+        let num = get_nth_number(&input, 30000000);
+        assert_eq!(num, 2578);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = vec![13, 16, 0, 12, 15, 1];
+
+        let num = get_nth_number(&input, 2020);
+        assert_eq!(num, 319);
+
+        let num = get_nth_number(&input, 30000000);
+        assert_eq!(num, 2424);
+    }
 }

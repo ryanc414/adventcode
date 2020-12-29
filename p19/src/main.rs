@@ -4,13 +4,24 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let mut input = load_input();
+    let filename = parse_args();
+    let mut input = load_input(&filename);
+
     let num_matches_1 = find_num_matches(&input.0, &input.1);
     println!("found {} matches using original rules", num_matches_1);
 
     update_rules(&mut input.0);
     let num_matches_2 = find_num_matches(&input.0, &input.1);
     println!("found {} matches using updated rules", num_matches_2);
+}
+
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+
+    args.remove(1)
 }
 
 enum Rule {
@@ -68,13 +79,8 @@ impl RuleParser {
     }
 }
 
-fn load_input() -> (HashMap<usize, Rule>, Vec<String>) {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-
-    let contents = fs::read_to_string(&args[1]).expect("could not read input file");
+fn load_input(filename: &str) -> (HashMap<usize, Rule>, Vec<String>) {
+    let contents = fs::read_to_string(filename).expect("could not read input file");
     let sections: Vec<&str> = contents
         .split("\n\n")
         .filter(|section| !section.is_empty())
@@ -164,4 +170,33 @@ fn validate_rule_combo(
 fn update_rules(rules: &mut HashMap<usize, Rule>) {
     rules.insert(8, Rule::Option(vec![42], vec![42, 8]));
     rules.insert(11, Rule::Option(vec![42, 31], vec![42, 11, 31]));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let mut input = load_input("basic_input.txt");
+
+        let num_matches = find_num_matches(&input.0, &input.1);
+        assert_eq!(num_matches, 2);
+
+        update_rules(&mut input.0);
+        let num_matches = find_num_matches(&input.0, &input.1);
+        assert_eq!(num_matches, 2);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let mut input = load_input("full_input.txt");
+
+        let num_matches = find_num_matches(&input.0, &input.1);
+        assert_eq!(num_matches, 222);
+
+        update_rules(&mut input.0);
+        let num_matches = find_num_matches(&input.0, &input.1);
+        assert_eq!(num_matches, 339);
+    }
 }

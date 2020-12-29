@@ -4,13 +4,23 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let mem_sum_1 = find_final_mem_sum(&input, StateVersion::V1);
     println!("final sum of memory values for V1 is {}", mem_sum_1);
 
     let mem_sum_2 = find_final_mem_sum(&input, StateVersion::V2);
     println!("final sum of memory values for V2 is {}", mem_sum_2);
+}
+
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+
+    args.remove(1)
 }
 
 struct InstructionParser {
@@ -124,13 +134,8 @@ struct MemSet {
     value: u64,
 }
 
-fn load_input() -> Vec<Instruction> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-
-    let contents = fs::read_to_string(&args[1]).expect("error reading input file");
+fn load_input(filename: &str) -> Vec<Instruction> {
+    let contents = fs::read_to_string(filename).expect("error reading input file");
     let parser = InstructionParser::new();
 
     contents
@@ -202,4 +207,20 @@ fn find_final_mem_sum(instructions: &[Instruction], version: StateVersion) -> u6
     }
 
     state.sum_memory_vals()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let sum = find_final_mem_sum(&input, StateVersion::V1);
+        assert_eq!(sum, 17481577045893);
+
+        let sum = find_final_mem_sum(&input, StateVersion::V2);
+        assert_eq!(sum, 4160009892257);
+    }
 }

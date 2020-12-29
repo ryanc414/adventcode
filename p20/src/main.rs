@@ -5,7 +5,9 @@ use std::fs;
 use std::hash::Hash;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
+
     let arranged = arrange_tiles(&input);
 
     let corner_product = multiply_corner_ids(&arranged);
@@ -13,6 +15,15 @@ fn main() {
 
     let roughness = find_water_roughness(arranged);
     println!("water roughness: {}", roughness);
+}
+
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+
+    args.remove(1)
 }
 
 fn multiply_corner_ids(tiles: &[Vec<Tile>]) -> u64 {
@@ -234,12 +245,8 @@ impl TileParser {
     }
 }
 
-fn load_input() -> Vec<Tile> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-    let contents = fs::read_to_string(&args[1]).expect("could not read input file");
+fn load_input(filename: &str) -> Vec<Tile> {
+    let contents = fs::read_to_string(filename).expect("could not read input file");
     let parser = TileParser::new();
 
     contents
@@ -600,6 +607,32 @@ fn merge_tiles(tiles: Vec<Vec<Tile>>) -> Vec<Vec<Pixel>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let arranged = arrange_tiles(&input);
+
+        let corner_product = multiply_corner_ids(&arranged);
+        assert_eq!(corner_product, 20899048083289);
+
+        let roughness = find_water_roughness(arranged);
+        assert_eq!(roughness, 273);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let arranged = arrange_tiles(&input);
+
+        let corner_product = multiply_corner_ids(&arranged);
+        assert_eq!(corner_product, 83775126454273);
+
+        let roughness = find_water_roughness(arranged);
+        assert_eq!(roughness, 1993);
+    }
 
     #[test]
     fn test_rotate_tile() {

@@ -3,7 +3,8 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let black_tiles = initial_black_tiles(&input);
     println!("{} black tiles are flipped", black_tiles.len());
@@ -15,6 +16,15 @@ fn main() {
     );
 }
 
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+
+    args.remove(1)
+}
+
 enum Direction {
     East,
     SouthEast,
@@ -24,13 +34,8 @@ enum Direction {
     NorthEast,
 }
 
-fn load_input() -> Vec<Vec<Direction>> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-
-    let contents = fs::read_to_string(&args[1]).expect("could not read from file");
+fn load_input(filename: &str) -> Vec<Vec<Direction>> {
+    let contents = fs::read_to_string(filename).expect("could not read from file");
     contents
         .split('\n')
         .filter(|line| !line.is_empty())
@@ -188,4 +193,31 @@ fn simulate_day(black_tiles: HashSet<NormalisedDirections>) -> HashSet<Normalise
     }
 
     updated_tiles
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let black_tiles = initial_black_tiles(&input);
+        assert_eq!(black_tiles.len(), 10);
+
+        let final_tiles = simulate_days(black_tiles, 100);
+        assert_eq!(final_tiles.len(), 2208);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let black_tiles = initial_black_tiles(&input);
+        assert_eq!(black_tiles.len(), 479);
+
+        let final_tiles = simulate_days(black_tiles, 100);
+        assert_eq!(final_tiles.len(), 4135);
+    }
 }

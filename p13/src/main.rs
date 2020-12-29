@@ -2,13 +2,23 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let result = find_earliest_bus(&input);
     println!("result is {}", result);
 
     let timestamp = find_earliest_timestamp(&input);
     println!("earliest timestamp that matches rules is {}", timestamp);
+}
+
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+
+    args.remove(1)
 }
 
 struct BusTimetable {
@@ -43,9 +53,8 @@ impl BusTimetable {
     }
 }
 
-fn load_input() -> BusTimetable {
-    let args: Vec<String> = env::args().collect();
-    let contents = fs::read_to_string(&args[1]).expect("error reading input file");
+fn load_input(filename: &str) -> BusTimetable {
+    let contents = fs::read_to_string(filename).expect("error reading input file");
     BusTimetable::parse(&contents)
 }
 
@@ -107,5 +116,32 @@ fn lowest_common_multiple(x: u64, y: u64) -> u64 {
             return m;
         }
         m += x;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let result = find_earliest_bus(&input);
+        assert_eq!(result, 295);
+
+        let timestamp = find_earliest_timestamp(&input);
+        assert_eq!(timestamp, 1068781);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let result = find_earliest_bus(&input);
+        assert_eq!(result, 115);
+
+        let timestamp = find_earliest_timestamp(&input);
+        assert_eq!(timestamp, 756261495958122);
     }
 }

@@ -3,7 +3,8 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let result_1 = count_valid(&input, validate_password_1);
     println!(
@@ -25,12 +26,15 @@ struct PasswordInput {
     policy_num_2: usize,
 }
 
-fn load_input() -> Vec<PasswordInput> {
-    let args: Vec<String> = env::args().collect();
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("please specify input filename");
     }
-    let filename = &args[1];
+    args.remove(1)
+}
+
+fn load_input(filename: &str) -> Vec<PasswordInput> {
     let contents = fs::read_to_string(filename).expect("Error reading the file");
     let line_re = Regex::new(r"^(\d+)-(\d+) (.): (.+)$").unwrap();
 
@@ -80,4 +84,31 @@ fn validate_password_2(pass_input: &PasswordInput) -> bool {
     };
 
     (letter_1 == pass_input.policy_letter) != (letter_2 == pass_input.policy_letter)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let res = count_valid(&input, validate_password_1);
+        assert_eq!(res, 2);
+
+        let res = count_valid(&input, validate_password_2);
+        assert_eq!(res, 1);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let res = count_valid(&input, validate_password_1);
+        assert_eq!(res, 614);
+
+        let res = count_valid(&input, validate_password_2);
+        assert_eq!(res, 354);
+    }
 }

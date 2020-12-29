@@ -4,7 +4,8 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let basic_score = find_winner_score(&input, Box::new(play_round_basic));
     println!("winner score for basic combat is {}", basic_score);
@@ -15,6 +16,15 @@ fn main() {
         Box::new(move |decks| play_round_recursive(decks, &mut deck_history)),
     );
     println!("winner score for recursive combat is {}", recursive_score);
+}
+
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+
+    args.remove(1)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -64,13 +74,8 @@ impl Deck {
 
 type PlayRoundFn = Box<dyn FnMut(&mut [Deck; 2]) -> Option<usize>>;
 
-fn load_input() -> [Deck; 2] {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-
-    let contents = fs::read_to_string(&args[1]).expect("could not read input file");
+fn load_input(filename: &str) -> [Deck; 2] {
+    let contents = fs::read_to_string(filename).expect("could not read input file");
     let sections: Vec<&str> = contents
         .split("\n\n")
         .filter(|section| !section.is_empty())
@@ -157,4 +162,39 @@ fn calculate_winner_score(winner_deck: &Deck) -> usize {
         .enumerate()
         .map(|(i, &card)| ((i as usize) + 1) * card)
         .sum()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let basic_score = find_winner_score(&input, Box::new(play_round_basic));
+        assert_eq!(basic_score, 306);
+
+        let mut deck_history = HashSet::new();
+        let recursive_score = find_winner_score(
+            &input,
+            Box::new(move |decks| play_round_recursive(decks, &mut deck_history)),
+        );
+        assert_eq!(recursive_score, 291);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let basic_score = find_winner_score(&input, Box::new(play_round_basic));
+        assert_eq!(basic_score, 32413);
+
+        let mut deck_history = HashSet::new();
+        let recursive_score = find_winner_score(
+            &input,
+            Box::new(move |decks| play_round_recursive(decks, &mut deck_history)),
+        );
+        assert_eq!(recursive_score, 31596);
+    }
 }

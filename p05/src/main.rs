@@ -3,7 +3,9 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
+
     let highest_id = find_highest_seat_id(&input);
     println!("highest seat ID is {}", highest_id);
 
@@ -23,13 +25,15 @@ impl Seat {
     }
 }
 
-fn load_input() -> Vec<Seat> {
-    let args: Vec<String> = env::args().collect();
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("please specify input filename");
     }
+    args.remove(1)
+}
 
-    let filename = &args[1];
+fn load_input(filename: &str) -> Vec<Seat> {
     let contents = fs::read_to_string(filename).expect("error reading the file");
 
     contents
@@ -111,5 +115,16 @@ mod tests {
         assert_eq!(seat.row, 44);
         assert_eq!(seat.col, 5);
         assert_eq!(seat.id(), 357);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let highest_id = find_highest_seat_id(&input);
+        assert_eq!(highest_id, 908);
+
+        let my_seat = find_my_seat(&input).unwrap();
+        assert_eq!(my_seat.id(), 619);
     }
 }

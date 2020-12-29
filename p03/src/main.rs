@@ -12,7 +12,9 @@ const PATHS: [Path; 5] = [
 ];
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
+
     let num_trees = count_path_trees(&input, &Path { right: 3, down: 1 });
     println!("encountered {} trees on default path", num_trees);
 
@@ -23,13 +25,15 @@ fn main() {
     );
 }
 
-fn load_input() -> Vec<Vec<char>> {
-    let args: Vec<String> = env::args().collect();
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("please specify input filename");
     }
+    args.remove(1)
+}
 
-    let filename = &args[1];
+fn load_input(filename: &str) -> Vec<Vec<char>> {
     let contents = fs::read_to_string(filename).expect("error reading the file");
 
     contents
@@ -64,4 +68,31 @@ fn get_path_multiples(input: &[Vec<char>]) -> u64 {
         .iter()
         .map(|path| count_path_trees(input, path))
         .product()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let res = count_path_trees(&input, &Path { right: 3, down: 1 });
+        assert_eq!(res, 7);
+
+        let res = get_path_multiples(&input);
+        assert_eq!(res, 336);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let res = count_path_trees(&input, &Path { right: 3, down: 1 });
+        assert_eq!(res, 178);
+
+        let res = get_path_multiples(&input);
+        assert_eq!(res, 3492520200);
+    }
 }

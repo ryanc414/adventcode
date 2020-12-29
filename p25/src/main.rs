@@ -6,19 +6,24 @@ const INITIAL_SUBJECT: u64 = 7;
 const DIVISOR: u64 = 20201227;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let encryption_key = find_encryption_key(&input);
     println!("encryption key is {}", encryption_key);
 }
 
-fn load_input() -> [u64; 2] {
-    let args: Vec<String> = env::args().collect();
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("please specify input filename");
     }
 
-    let contents = fs::read_to_string(&args[1]).expect("could not read input file");
+    args.remove(1)
+}
+
+fn load_input(filename: &str) -> [u64; 2] {
+    let contents = fs::read_to_string(filename).expect("could not read input file");
     let lines: Vec<u64> = contents
         .split('\n')
         .filter(|line| !line.is_empty())
@@ -64,4 +69,25 @@ fn calculate_encryption_key(loop_size: u64, public_key: u64) -> u64 {
         value = transform_value(value, public_key);
     }
     value
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let encryption_key = find_encryption_key(&input);
+        assert_eq!(encryption_key, 14897079);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let encryption_key = find_encryption_key(&input);
+        assert_eq!(encryption_key, 12285001);
+    }
 }

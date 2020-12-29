@@ -4,7 +4,8 @@ use std::fs;
 type NextStateFn = fn(&[Vec<Position>], (usize, usize)) -> Position;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let occupied_count_1 = count_stable_occupied(&input, next_state_for_part_1);
     println!(
@@ -19,6 +20,15 @@ fn main() {
     );
 }
 
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+
+    args.remove(1)
+}
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum Position {
     Floor,
@@ -26,13 +36,7 @@ enum Position {
     OccupiedSeat,
 }
 
-fn load_input() -> Vec<Vec<Position>> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-
-    let filename = &args[1];
+fn load_input(filename: &str) -> Vec<Vec<Position>> {
     let contents = fs::read_to_string(filename).expect("error reading file");
 
     contents
@@ -216,4 +220,31 @@ fn count_total_occupied(state: &[Vec<Position>]) -> usize {
                 .count()
         })
         .sum()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let count = count_stable_occupied(&input, next_state_for_part_1);
+        assert_eq!(count, 37);
+
+        let count = count_stable_occupied(&input, next_state_for_part_2);
+        assert_eq!(count, 26);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let count = count_stable_occupied(&input, next_state_for_part_1);
+        assert_eq!(count, 2483);
+
+        let count = count_stable_occupied(&input, next_state_for_part_2);
+        assert_eq!(count, 2285);
+    }
 }

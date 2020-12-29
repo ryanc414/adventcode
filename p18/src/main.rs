@@ -2,13 +2,23 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let sum = sum_expressions(&input, split_equal_precedence);
     println!("sum of expressions using first set of rules is {}", sum);
 
     let sum = sum_expressions(&input, split_multiply_first);
     println!("sum of expressions using first set of rules is {}", sum);
+}
+
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+
+    args.remove(1)
 }
 
 #[derive(Debug)]
@@ -111,13 +121,8 @@ impl Operator {
     }
 }
 
-fn load_input() -> Vec<String> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-
-    let contents = fs::read_to_string(&args[1]).expect("could not read input file");
+fn load_input(filename: &str) -> Vec<String> {
+    let contents = fs::read_to_string(filename).expect("could not read input file");
 
     contents
         .split('\n')
@@ -131,4 +136,31 @@ fn sum_expressions(input: &[String], splitter: SplitterFn) -> i64 {
         .iter()
         .map(|line| Expression::parse(line, splitter).evaluate())
         .sum()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let sum = sum_expressions(&input, split_equal_precedence);
+        assert_eq!(sum, 13632);
+
+        let sum = sum_expressions(&input, split_multiply_first);
+        assert_eq!(sum, 23340);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let sum = sum_expressions(&input, split_equal_precedence);
+        assert_eq!(sum, 14006719520523);
+
+        let sum = sum_expressions(&input, split_multiply_first);
+        assert_eq!(sum, 545115449981968);
+    }
 }

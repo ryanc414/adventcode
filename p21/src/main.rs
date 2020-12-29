@@ -4,7 +4,8 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let mut allergen_possibles = find_allergen_possibles(&input);
 
@@ -16,6 +17,15 @@ fn main() {
         "canonical dangerous ingredients list is {}",
         dangerous_ingredients
     );
+}
+
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+
+    args.remove(1)
 }
 
 struct IngredientsList {
@@ -45,13 +55,8 @@ impl IngredientsListParser {
     }
 }
 
-fn load_input() -> Vec<IngredientsList> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-
-    let contents = fs::read_to_string(&args[1]).expect("could not read input file");
+fn load_input(filename: &str) -> Vec<IngredientsList> {
+    let contents = fs::read_to_string(filename).expect("could not read input file");
     let parser = IngredientsListParser::new();
 
     contents
@@ -200,4 +205,38 @@ fn canonical_list(mut dangerous_ingredients: Vec<AllergenPair>) -> String {
         .map(|pair| pair.ingredient)
         .collect::<Vec<&str>>()
         .join(",")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let mut allergen_possibles = find_allergen_possibles(&input);
+
+        let count = count_non_allergen_ingredients(&input, &allergen_possibles);
+        assert_eq!(count, 5);
+
+        let dangerous_ingredients = find_dangerous_ingredients(&mut allergen_possibles);
+        assert_eq!(dangerous_ingredients, "mxmxvkd,sqjhc,fvjkl");
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let mut allergen_possibles = find_allergen_possibles(&input);
+
+        let count = count_non_allergen_ingredients(&input, &allergen_possibles);
+        assert_eq!(count, 2461);
+
+        let dangerous_ingredients = find_dangerous_ingredients(&mut allergen_possibles);
+        assert_eq!(
+            dangerous_ingredients,
+            "ltbj,nrfmm,pvhcsn,jxbnb,chpdjkf,jtqt,zzkq,jqnhd"
+        );
+    }
 }

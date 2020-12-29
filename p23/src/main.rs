@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::env;
 
 fn main() {
-    let cups = load_input();
+    let cups = parse_args();
 
     let final_labels = find_final_labels(&cups, 100);
     println!("after 100 moves the final cup labels are {}", final_labels);
@@ -145,7 +145,7 @@ impl CupCircle {
     }
 }
 
-fn load_input() -> Vec<u32> {
+fn parse_args() -> Vec<u32> {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("please specify input cup labels and number of moves")
@@ -172,4 +172,31 @@ fn find_final_product(cup_labels: &[u32], num_cups: u32, num_moves: usize) -> u6
     }
 
     cups.neighbours_product()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let cups = vec![3, 8, 9, 1, 2, 5, 4, 6, 7];
+
+        let final_labels = find_final_labels(&cups, 100);
+        assert_eq!(final_labels, "67384529");
+
+        let product = find_final_product(&cups, 1000000, 10000000);
+        assert_eq!(product, 149245887792);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let cups = vec![9, 1, 6, 4, 3, 8, 2, 7, 5];
+
+        let final_labels = find_final_labels(&cups, 100);
+        assert_eq!(final_labels, "67384529");
+
+        let product = find_final_product(&cups, 1000000, 10000000);
+        assert_eq!(product, 149245887792);
+    }
 }

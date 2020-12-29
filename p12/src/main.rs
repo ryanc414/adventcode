@@ -2,7 +2,8 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let final_distance_1 = find_final_manhattan_distance(&input, State1::new());
     println!("final distance is {}", final_distance_1);
@@ -11,6 +12,14 @@ fn main() {
     println!("final distance is {}", final_distance_2);
 }
 
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+
+    args.remove(1)
+}
 enum Instruction {
     North(i64),
     South(i64),
@@ -45,13 +54,8 @@ impl Instruction {
     }
 }
 
-fn load_input() -> Vec<Instruction> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename");
-    }
-
-    let contents = fs::read_to_string(&args[1]).expect("error reading input file");
+fn load_input(filename: &str) -> Vec<Instruction> {
+    let contents = fs::read_to_string(filename).expect("error reading input file");
     contents
         .split('\n')
         .filter(|line| !line.is_empty())
@@ -224,4 +228,31 @@ fn find_final_manhattan_distance<S: State>(input: &[Instruction], mut state: S) 
     }
 
     state.manhattan_distance()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let distance = find_final_manhattan_distance(&input, State1::new());
+        assert_eq!(distance, 25);
+
+        let distance = find_final_manhattan_distance(&input, State2::new());
+        assert_eq!(distance, 286);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let distance = find_final_manhattan_distance(&input, State1::new());
+        assert_eq!(distance, 439);
+
+        let distance = find_final_manhattan_distance(&input, State2::new());
+        assert_eq!(distance, 12385);
+    }
 }

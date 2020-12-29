@@ -4,7 +4,8 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let input = load_input();
+    let filename = parse_args();
+    let input = load_input(&filename);
 
     let invalid_vals = input.find_all_invalid_values();
     let err_rate = input.find_err_rate(&invalid_vals);
@@ -12,6 +13,15 @@ fn main() {
 
     let result = input.multiply_departures(&invalid_vals);
     println!("multiple of all departure fields is {}", result);
+}
+
+fn parse_args() -> String {
+    let mut args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("please specify input filename");
+    }
+
+    args.remove(1)
 }
 
 type Ticket = Vec<u64>;
@@ -279,13 +289,33 @@ struct TicketRule {
     ranges: [(u64, u64); 2],
 }
 
-fn load_input() -> TicketInfo {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("please specify input filename")
+fn load_input(filename: &str) -> TicketInfo {
+    let contents = fs::read_to_string(filename).expect("error reading input file");
+    TicketInfo::parse(&contents)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let invalid_vals = input.find_all_invalid_values();
+        let err_rate = input.find_err_rate(&invalid_vals);
+        assert_eq!(err_rate, 71);
     }
 
-    let contents = fs::read_to_string(&args[1]).expect("error reading input file");
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
 
-    TicketInfo::parse(&contents)
+        let invalid_vals = input.find_all_invalid_values();
+        let err_rate = input.find_err_rate(&invalid_vals);
+        assert_eq!(err_rate, 24021);
+
+        let result = input.multiply_departures(&invalid_vals);
+        assert_eq!(result, 1289178686687);
+    }
 }

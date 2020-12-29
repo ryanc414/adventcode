@@ -3,7 +3,8 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let (input, preamble_len) = load_input();
+    let (filename, preamble_len) = parse_args();
+    let input = load_input(&filename);
 
     let num = find_first_rulebreaker(&input, preamble_len)
         .expect("could not find any numbers that break the rules");
@@ -13,15 +14,17 @@ fn main() {
     println!("encryption weakness is {}", weakness);
 }
 
-fn load_input() -> (Vec<u64>, usize) {
-    let args: Vec<String> = env::args().collect();
+fn parse_args() -> (String, usize) {
+    let mut args: Vec<String> = env::args().collect();
     if args.len() != 3 {
-        panic!("please specify input filename and preamble length");
+        panic!("please specify input filename and preamble size");
     }
 
-    let filename = &args[1];
     let preamble: usize = args[2].parse().unwrap();
+    (args.remove(1), preamble)
+}
 
+fn load_input(filename: &str) -> Vec<u64> {
     let contents = fs::read_to_string(filename).expect("error reading the file");
 
     let input: Vec<u64> = contents
@@ -30,7 +33,7 @@ fn load_input() -> (Vec<u64>, usize) {
         .map(|line| line.parse().unwrap())
         .collect();
 
-    (input, preamble)
+    input
 }
 
 fn find_first_rulebreaker(input: &[u64], preamble_len: usize) -> Option<u64> {
@@ -100,4 +103,33 @@ fn find_contiguous_sum(input: &[u64], target: u64, start_ix: usize) -> Option<&[
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_input() {
+        let input = load_input("basic_input.txt");
+
+        let num = find_first_rulebreaker(&input, 5)
+            .expect("could not find any numbers that break the rules");
+        assert_eq!(num, 127);
+
+        let weakness = find_weakness(&input, num).expect("could not find encryption weakness");
+        assert_eq!(weakness, 62);
+    }
+
+    #[test]
+    fn test_full_input() {
+        let input = load_input("full_input.txt");
+
+        let num = find_first_rulebreaker(&input, 25)
+            .expect("could not find any numbers that break the rules");
+        assert_eq!(num, 14144619);
+
+        let weakness = find_weakness(&input, num).expect("could not find encryption weakness");
+        assert_eq!(weakness, 1766397);
+    }
 }

@@ -1,6 +1,7 @@
 use regex::Regex;
 use std::collections::HashMap;
 use std::env;
+use std::fmt;
 use std::fs;
 use std::hash::Hash;
 use std::iter::FromIterator;
@@ -99,7 +100,7 @@ impl Grid<Pixel> {
 
     fn get_edge(&self, edge: EdgePos) -> Vec<Pixel> {
         match edge {
-            EdgePos::Top => self.elements[..self.size].iter().cloned().collect(),
+            EdgePos::Top => self.elements[..self.size].to_vec(),
             EdgePos::Right => self
                 .elements
                 .iter()
@@ -108,10 +109,7 @@ impl Grid<Pixel> {
                 .map(|(_, el)| el)
                 .cloned()
                 .collect(),
-            EdgePos::Bottom => self.elements[self.size * (self.size - 1)..]
-                .iter()
-                .cloned()
-                .collect(),
+            EdgePos::Bottom => self.elements[self.size * (self.size - 1)..].to_vec(),
             EdgePos::Left => self
                 .elements
                 .iter()
@@ -199,8 +197,10 @@ impl Grid<Pixel> {
     fn valid_coords(&self, (i, j): (usize, usize)) -> bool {
         i < self.size && j < self.size
     }
+}
 
-    fn to_string(&self) -> String {
+impl fmt::Display for Grid<Pixel> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut res = String::new();
 
         for i in 0..self.size {
@@ -211,7 +211,7 @@ impl Grid<Pixel> {
             res.push('\n');
         }
 
-        res
+        write!(f, "{}", res)
     }
 }
 
@@ -854,7 +854,6 @@ mod tests {
 
         let tiles = vec![vec![tile; 3]; 3];
         let result = strip_edges_and_merge(tiles);
-        println!("result:\n{}", result.to_string());
 
         let expected: Grid<Pixel> = "#.#.#.
 .#.#.#

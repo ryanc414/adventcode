@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::hash::Hash;
+use std::iter::FromIterator;
 
 fn main() {
     let filename = parse_args();
@@ -59,13 +60,231 @@ impl Pixel {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct Edge(Vec<Pixel>);
+impl Default for Pixel {
+    fn default() -> Self {
+        Self::Zero
+    }
+}
 
-impl Edge {
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct Grid<T> {
+    size: usize,
+    elements: Vec<T>,
+}
+
+impl Grid<Pixel> {
+    fn new(size: usize) -> Self {
+        Self {
+            size,
+            elements: vec![Default::default(); size * size],
+        }
+    }
+
+    fn get(&self, (x, y): (usize, usize)) -> &Pixel {
+        let ix = self.coords_ix((x, y));
+        &self.elements[ix]
+    }
+
+    fn set(&mut self, (x, y): (usize, usize), val: Pixel) {
+        let ix = self.coords_ix((x, y));
+        self.elements[ix] = val;
+    }
+
+    fn coords_ix(&self, (x, y): (usize, usize)) -> usize {
+        if !self.valid_coords((x, y)) {
+            panic!("invalid coords: {:?}", (x, y));
+        }
+        (y * self.size) + x
+    }
+
+    fn get_edge(&self, edge: EdgePos) -> Vec<Pixel> {
+        match edge {
+            EdgePos::Top => self.elements[..self.size].iter().cloned().collect(),
+            EdgePos::Right => self
+                .elements
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| (i + 1) % self.size == 0)
+                .map(|(_, el)| el)
+                .cloned()
+                .collect(),
+            EdgePos::Bottom => self.elements[self.size * (self.size - 1)..]
+                .iter()
+                .cloned()
+                .collect(),
+            EdgePos::Left => self
+                .elements
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| i % self.size == 0)
+                .map(|(_, el)| el)
+                .cloned()
+                .collect(),
+        }
+    }
+
+    fn rotate_anticlockwise(&self, times: usize) -> Self {
+        if times == 0 {
+            return self.clone();
+        }
+
+        let mut new_contents = Self::new(self.size);
+
+        for i in 0..self.size {
+            for j in 0..self.size {
+                new_contents.set((i, j), *self.get((self.size - j - 1, i)));
+            }
+        }
+
+        if times > 1 {
+            new_contents.rotate_anticlockwise(times - 1)
+        } else {
+            new_contents
+        }
+    }
+
+    fn flip_to_match(&self, other: &Self, other_edge_pos: EdgePos) -> Self {
+        let other_edge = other.get_edge(other_edge_pos);
+        let self_edge = self.get_edge(other_edge_pos.opposite());
+
+        if other_edge == self_edge {
+            return self.clone();
+        }
+
+        let horizontal_flip = other_edge_pos.is_horizontal();
+
+        if horizontal_flip {
+            self.flip_horizontal()
+        } else {
+            self.flip_vertical()
+        }
+    }
+
+    fn flip_vertical(&self) -> Self {
+        let mut new_contents = Self::new(self.size);
+
+        for i in 0..self.size {
+            for j in 0..self.size {
+                new_contents.set((i, self.size - j - 1), *self.get((i, j)));
+            }
+        }
+
+        new_contents
+    }
+
+    fn flip_horizontal(&self) -> Self {
+        let mut new_contents = Self::new(self.size);
+
+        for i in 0..self.size {
+            for j in 0..self.size {
+                new_contents.set((self.size - i - 1, j), *self.get((i, j)));
+            }
+        }
+
+        new_contents
+    }
+
+    fn strip_edges(&self) -> Self {
+        let mut new_contents = Self::new(self.size - 2);
+
+        for i in 1..(self.size - 1) {
+            for j in 1..(self.size - 1) {
+                new_contents.set((i - 1, j - 1), *self.get((i, j)));
+            }
+        }
+
+        new_contents
+    }
+
+    fn valid_coords(&self, (i, j): (usize, usize)) -> bool {
+        i < self.size && j < self.size
+    }
+
+    fn to_string(&self) -> String {
+        let mut res = String::new();
+
+        for i in 0..self.size {
+            for j in 0..self.size {
+                let pixel = self.get((i, j));
+                res.push(pixel.to_char());
+            }
+            res.push('\n');
+        }
+
+        res
+    }
+}
+
+impl<'a> FromIterator<&'a str> for Grid<Pixel> {
+    fn from_iter<I: IntoIterator<Item = &'a str>>(iter: I) -> Self {
+        let lines: Vec<&str> = iter.into_iter().collect();
+        let size = lines.len();
+
+        let mut contents = Self::new(size);
+
+        for (i, l) in lines.into_iter().enumerate() {
+            let pixels: Vec<Pixel> = l.chars().map(Pixel::parse).collect();
+            if pixels.len() != size {
+                panic!("cannot parse input as a grid");
+            }
+
+            for (j, p) in pixels.into_iter().enumerate() {
+                contents.set((j, i), p);
+            }
+        }
+
+        contents
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+enum EdgePos {
+    Top,
+    Right,
+    Bottom,
+    Left,
+}
+
+impl EdgePos {
+    fn opposite(&self) -> Self {
+        match self {
+            Self::Top => Self::Bottom,
+            Self::Right => Self::Left,
+            Self::Bottom => Self::Top,
+            Self::Left => Self::Right,
+        }
+    }
+
+    fn is_horizontal(&self) -> bool {
+        match self {
+            Self::Top | Self::Bottom => true,
+            Self::Right | Self::Left => false,
+        }
+    }
+
+    fn to_num(&self) -> usize {
+        match self {
+            Self::Top => 0,
+            Self::Right => 1,
+            Self::Bottom => 2,
+            Self::Left => 3,
+        }
+    }
+
+    fn rotations_to(&self, other: &Self) -> usize {
+        let edge_ix = self.to_num();
+        let required_ix = other.to_num();
+        ((edge_ix + 4) - required_ix) % 4
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct NormalisedEdge(Vec<Pixel>);
+
+impl NormalisedEdge {
     fn new(mut pixels: Vec<Pixel>) -> Self {
         let middle = pixels.len() / 2;
-        let first_half = pixels[..middle].to_vec();
+        let first_half: Vec<Pixel> = pixels[..middle].to_vec();
         let second_half: Vec<Pixel> = pixels[middle..].iter().rev().cloned().collect();
         if first_half.len() != second_half.len() {
             panic!("unequal halves");
@@ -82,144 +301,62 @@ impl Edge {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct Tile {
     id: u64,
-    contents: Vec<Vec<Pixel>>,
-    edges: [Edge; 4],
-    size: usize,
+    contents: Grid<Pixel>,
+    normalised_edges: [(EdgePos, NormalisedEdge); 4],
 }
 
 impl Tile {
-    fn from_contents(contents: Vec<Vec<Pixel>>, id: u64) -> Self {
-        let top = Self::get_edge(&contents, 0);
-        let right = Self::get_edge(&contents, 1);
-        let bottom = Self::get_edge(&contents, 2);
-        let left = Self::get_edge(&contents, 3);
-
-        let size = contents.len();
+    fn from_contents(contents: Grid<Pixel>, id: u64) -> Self {
+        let top = contents.get_edge(EdgePos::Top);
+        let right = contents.get_edge(EdgePos::Right);
+        let bottom = contents.get_edge(EdgePos::Bottom);
+        let left = contents.get_edge(EdgePos::Left);
 
         Self {
             id,
             contents,
-            edges: [
-                Edge::new(top),
-                Edge::new(right),
-                Edge::new(bottom),
-                Edge::new(left),
+            normalised_edges: [
+                (EdgePos::Top, NormalisedEdge::new(top)),
+                (EdgePos::Right, NormalisedEdge::new(right)),
+                (EdgePos::Bottom, NormalisedEdge::new(bottom)),
+                (EdgePos::Left, NormalisedEdge::new(left)),
             ],
-            size,
         }
     }
 
-    fn get_edge(contents: &[Vec<Pixel>], edge: usize) -> Vec<Pixel> {
-        match edge {
-            0 => contents[0].to_vec(),                                       // top
-            1 => contents.iter().map(|line| line[line.len() - 1]).collect(), // right
-            2 => contents[contents.len() - 1].to_vec(),                      // bottom
-            3 => contents.iter().map(|line| line[0]).collect(),              // left
-            _ => panic!("unexpected edge index: {}", edge),
-        }
-    }
-
-    fn rotate_starting_corner(&self, edge_shares: &HashMap<&Edge, Vec<(&Tile, usize)>>) -> Self {
-        let unmatched_edges: Vec<usize> = self
-            .edges
+    fn rotate_starting_corner(
+        &self,
+        edge_shares: &HashMap<&NormalisedEdge, Vec<(&Tile, EdgePos)>>,
+    ) -> Self {
+        let unmatched_edges: Vec<EdgePos> = self
+            .normalised_edges
             .iter()
-            .enumerate()
             .filter(|(_, edge)| edge_shares.get(edge).unwrap().len() == 1)
-            .map(|(i, _)| i)
+            .map(|&(pos, _)| pos)
             .collect();
         assert_eq!(unmatched_edges.len(), 2);
 
-        if unmatched_edges[0] == 0 && unmatched_edges[1] == 3 {
+        if unmatched_edges[0] == EdgePos::Top && unmatched_edges[1] == EdgePos::Left {
             return self.clone();
         }
 
-        let rotations = (unmatched_edges[0] + 1) % 4;
-        self.rotate_anticlockwise(rotations)
-    }
-
-    fn rotate_and_flip(&self, match_edge: usize, edge_ix: usize, matching_tile: &Self) -> Self {
-        let required_edge = (match_edge + 2) % 4;
-        let rotations = ((edge_ix + 4) - required_edge) % 4;
-        let rotated = self.rotate_anticlockwise(rotations);
-        rotated.flip_to_match(matching_tile, match_edge)
-    }
-
-    fn rotate_anticlockwise(&self, times: usize) -> Self {
-        let rotated = rotate_anticlockwise(&self.contents, self.size, times);
+        let rotations = (unmatched_edges[0].to_num() + 1) % 4;
+        let rotated = self.contents.rotate_anticlockwise(rotations);
         Self::from_contents(rotated, self.id)
     }
 
-    fn flip_to_match(&self, other: &Self, other_edge_ix: usize) -> Self {
-        let other_edge = Self::get_edge(&other.contents, other_edge_ix);
-        let self_edge = Self::get_edge(&self.contents, (other_edge_ix + 2) % 4);
-
-        if other_edge == self_edge {
-            return self.clone();
-        }
-
-        let horizontal_flip = other_edge_ix % 2 == 0;
-
-        let flipped = if horizontal_flip {
-            flip_horizontal(&self.contents, self.size)
-        } else {
-            flip_vertical(&self.contents, self.size)
-        };
-
+    fn rotate_and_flip(
+        &self,
+        match_edge: EdgePos,
+        self_edge: EdgePos,
+        matching_tile: &Self,
+    ) -> Self {
+        let required_edge = match_edge.opposite();
+        let rotations = self_edge.rotations_to(&required_edge);
+        let rotated = self.contents.rotate_anticlockwise(rotations);
+        let flipped = rotated.flip_to_match(&matching_tile.contents, match_edge);
         Self::from_contents(flipped, self.id)
     }
-
-    fn strip_edges(&self) -> Self {
-        let new_contents = self.contents[1..(self.size - 1)]
-            .iter()
-            .map(|row| row[1..(self.size - 1)].to_vec())
-            .collect();
-
-        Self::from_contents(new_contents, self.id)
-    }
-}
-
-fn rotate_anticlockwise(pixels: &[Vec<Pixel>], size: usize, times: usize) -> Vec<Vec<Pixel>> {
-    if times == 0 {
-        return pixels.to_vec();
-    }
-
-    let mut new_contents: Vec<Vec<Pixel>> = Vec::new();
-
-    for i in 0..size {
-        let mut row: Vec<Pixel> = Vec::new();
-
-        for j in 0..size {
-            row.push(pixels[j][size - i - 1]);
-        }
-
-        new_contents.push(row);
-    }
-
-    rotate_anticlockwise(&new_contents, size, times - 1)
-}
-
-fn flip_vertical(pixels: &[Vec<Pixel>], size: usize) -> Vec<Vec<Pixel>> {
-    let mut new_contents = Vec::new();
-
-    for i in 0..size {
-        new_contents.push(pixels[size - i - 1].clone());
-    }
-
-    new_contents
-}
-
-fn flip_horizontal(pixels: &[Vec<Pixel>], size: usize) -> Vec<Vec<Pixel>> {
-    let mut new_contents = Vec::new();
-
-    for i in 0..size {
-        let mut row: Vec<Pixel> = Vec::new();
-        for j in 0..size {
-            row.push(pixels[i][size - j - 1]);
-        }
-        new_contents.push(row);
-    }
-
-    new_contents
 }
 
 struct TileParser {
@@ -237,10 +374,10 @@ impl TileParser {
         let mut it = input.split('\n');
         let caps = self.tile_re.captures(it.next().unwrap()).unwrap();
         let id: u64 = caps[1].parse().unwrap();
-        let contents: Vec<Vec<Pixel>> = it
-            .map(|line| line.chars().map(Pixel::parse).collect())
-            .collect();
-
+        // let contents: Vec<Vec<Pixel>> = it
+        //     .map(|line| line.chars().map(Pixel::parse).collect())
+        //     .collect();
+        let contents: Grid<Pixel> = it.collect();
         Tile::from_contents(contents, id)
     }
 }
@@ -295,7 +432,7 @@ fn collect_tiles(
 }
 
 fn order_tiles(
-    edge_shares: &HashMap<&Edge, Vec<(&Tile, usize)>>,
+    edge_shares: &HashMap<&NormalisedEdge, Vec<(&Tile, EdgePos)>>,
     corners: Vec<&Tile>,
     arrangement_size: usize,
 ) -> HashMap<(usize, usize), Tile> {
@@ -304,11 +441,6 @@ fn order_tiles(
 
     let mut tile_coords: HashMap<(usize, usize), Tile> = HashMap::new();
     let rotated_tile = start_tile.rotate_starting_corner(edge_shares);
-
-    assert_eq!(edge_shares.get(&rotated_tile.edges[0]).unwrap().len(), 1);
-    assert_eq!(edge_shares.get(&rotated_tile.edges[1]).unwrap().len(), 2);
-    assert_eq!(edge_shares.get(&rotated_tile.edges[2]).unwrap().len(), 2);
-    assert_eq!(edge_shares.get(&rotated_tile.edges[3]).unwrap().len(), 1);
 
     order_tiles_recur(
         &mut tile_coords,
@@ -324,22 +456,23 @@ fn order_tiles_recur(
     tile_coords: &mut HashMap<(usize, usize), Tile>,
     curr_tile: Tile,
     curr_coords: (usize, usize),
-    edge_shares: &HashMap<&Edge, Vec<(&Tile, usize)>>,
+    edge_shares: &HashMap<&NormalisedEdge, Vec<(&Tile, EdgePos)>>,
     arrangement_size: usize,
 ) {
     tile_coords.insert(curr_coords, curr_tile.clone());
 
-    for (i, edge) in curr_tile.edges.iter().enumerate() {
+    for (pos, edge) in curr_tile.normalised_edges.iter() {
         let edge_tiles = edge_shares.get(edge).unwrap();
 
-        let neighbour_coords = match calculate_neighbour_coords(curr_coords, i, arrangement_size) {
+        let neighbour_coords = match calculate_neighbour_coords(curr_coords, *pos, arrangement_size)
+        {
             Some(coords) => coords,
             None => {
                 if edge_tiles.len() != 1 {
                     panic!(
-                        "more than 1 tiles share edge: {} {} {:?}",
+                        "more than 1 tiles share edge: {} {:?} {:?}",
                         edge_tiles.len(),
-                        i,
+                        pos,
                         curr_coords
                     );
                 }
@@ -354,9 +487,9 @@ fn order_tiles_recur(
 
         if edge_tiles.len() != 2 {
             panic!(
-                "only {} tiles share edge {} of tile {:?}",
+                "only {} tiles share edge {:?} of tile {:?}",
                 edge_tiles.len(),
-                i,
+                pos,
                 curr_coords
             );
         }
@@ -366,7 +499,7 @@ fn order_tiles_recur(
             .find(|&&(tile, _)| tile.id != curr_tile.id)
             .unwrap();
 
-        let rotated_tile = next_tile.rotate_and_flip(i, *edge_ix, &curr_tile);
+        let rotated_tile = next_tile.rotate_and_flip(*pos, *edge_ix, &curr_tile);
 
         order_tiles_recur(
             tile_coords,
@@ -391,10 +524,10 @@ const EDGE_DIRS: [(i64, i64); 4] = [
 
 fn calculate_neighbour_coords(
     curr_coords: (usize, usize),
-    edge_ix: usize,
+    edge_pos: EdgePos,
     size: usize,
 ) -> Option<(usize, usize)> {
-    let dir = EDGE_DIRS[edge_ix];
+    let dir = EDGE_DIRS[edge_pos.to_num()];
 
     let coords = (
         ((curr_coords.0 as i64) + dir.0) as usize,
@@ -408,12 +541,12 @@ fn calculate_neighbour_coords(
     }
 }
 
-fn find_edge_shares(tiles: &[Tile]) -> HashMap<&Edge, Vec<(&Tile, usize)>> {
-    let mut edge_map: HashMap<&Edge, Vec<(&Tile, usize)>> = HashMap::new();
+fn find_edge_shares(tiles: &[Tile]) -> HashMap<&NormalisedEdge, Vec<(&Tile, EdgePos)>> {
+    let mut edge_map: HashMap<&NormalisedEdge, Vec<(&Tile, EdgePos)>> = HashMap::new();
 
     for tile in tiles {
-        for (i, edge) in tile.edges.iter().enumerate() {
-            edge_map.entry(edge).or_default().push((tile, i));
+        for (pos, edge) in tile.normalised_edges.iter() {
+            edge_map.entry(edge).or_default().push((tile, *pos));
         }
     }
 
@@ -421,7 +554,7 @@ fn find_edge_shares(tiles: &[Tile]) -> HashMap<&Edge, Vec<(&Tile, usize)>> {
 }
 
 fn count_tile_unmatched_edges<'a, 'b>(
-    edge_shares: &'a HashMap<&'b Edge, Vec<(&'b Tile, usize)>>,
+    edge_shares: &'a HashMap<&'b NormalisedEdge, Vec<(&'b Tile, EdgePos)>>,
 ) -> HashMap<&'b Tile, usize> {
     let mut tiles_unmatched_edges: HashMap<&Tile, usize> = HashMap::new();
 
@@ -513,12 +646,12 @@ fn flip_monster_vertical(monster: Vec<(isize, isize)>) -> Vec<(isize, isize)> {
 }
 
 fn remove_monsters(
-    image: &[Vec<Pixel>],
-    monsters_removed: &mut [Vec<Pixel>],
+    image: &Grid<Pixel>,
+    monsters_removed: &mut Grid<Pixel>,
     monster: &[(isize, isize)],
 ) {
-    for i in 0..image.len() {
-        for j in 0..image[i].len() {
+    for i in 0..image.size {
+        for j in 0..image.size {
             if found_monster(image, (i, j), monster) {
                 remove_monster(monsters_removed, (i, j), monster);
             }
@@ -526,16 +659,16 @@ fn remove_monsters(
     }
 }
 
-fn found_monster(image: &[Vec<Pixel>], (i, j): (usize, usize), monster: &[(isize, isize)]) -> bool {
+fn found_monster(image: &Grid<Pixel>, (i, j): (usize, usize), monster: &[(isize, isize)]) -> bool {
     for &(x, y) in monster.iter() {
         let u = ((i as isize) + x) as usize;
         let v = ((j as isize) + y) as usize;
 
-        if !valid_coords((u, v), image.len()) {
+        if !image.valid_coords((u, v)) {
             return false;
         }
 
-        if image[u][v] != Pixel::One {
+        if *image.get((u, v)) != Pixel::One {
             return false;
         }
     }
@@ -543,12 +676,8 @@ fn found_monster(image: &[Vec<Pixel>], (i, j): (usize, usize), monster: &[(isize
     true
 }
 
-fn valid_coords((i, j): (usize, usize), size: usize) -> bool {
-    i < size && j < size
-}
-
 fn remove_monster(
-    monsters_removed: &mut [Vec<Pixel>],
+    monsters_removed: &mut Grid<Pixel>,
     (i, j): (usize, usize),
     monster: &[(isize, isize)],
 ) {
@@ -556,53 +685,52 @@ fn remove_monster(
         let u = ((i as isize) + x) as usize;
         let v = ((j as isize) + y) as usize;
 
-        monsters_removed[u][v] = Pixel::Zero;
+        monsters_removed.set((u, v), Pixel::Zero);
     }
 }
 
-fn count_pixels(image: &[Vec<Pixel>]) -> usize {
+fn count_pixels(image: &Grid<Pixel>) -> usize {
     image
+        .elements
         .iter()
-        .map(|row| row.iter().filter(|&&pixel| pixel == Pixel::One).count())
-        .sum()
+        .filter(|&&pixel| pixel == Pixel::One)
+        .count()
 }
 
-fn strip_edges_and_merge(tiles: Vec<Vec<Tile>>) -> Vec<Vec<Pixel>> {
+fn strip_edges_and_merge(tiles: Vec<Vec<Tile>>) -> Grid<Pixel> {
     let stripped = strip_edges(tiles);
     merge_tiles(stripped)
 }
 
-fn strip_edges(tiles: Vec<Vec<Tile>>) -> Vec<Vec<Tile>> {
+fn strip_edges(tiles: Vec<Vec<Tile>>) -> Vec<Vec<Grid<Pixel>>> {
     tiles
         .into_iter()
-        .map(|row| row.into_iter().map(|tile| tile.strip_edges()).collect())
+        .map(|row| {
+            row.into_iter()
+                .map(|tile| tile.contents.strip_edges())
+                .collect()
+        })
         .collect()
 }
 
-fn merge_tiles(tiles: Vec<Vec<Tile>>) -> Vec<Vec<Pixel>> {
-    let mut merged = Vec::new();
+fn merge_tiles(tiles: Vec<Vec<Grid<Pixel>>>) -> Grid<Pixel> {
+    let size = tiles[0][0].size * tiles.len();
+    let mut merged: Grid<Pixel> = Grid::new(size);
 
-    for tile_row in tiles {
-        for i in 0..tile_row[0].size {
-            let mut next_pixel_row: Vec<Pixel> = Vec::new();
-            for pixel_row in tile_row.iter().map(|tile| &tile.contents[i]) {
-                next_pixel_row.append(&mut pixel_row.clone());
+    for (row_ix, tile_row) in tiles.iter().enumerate() {
+        for (col_ix, tile) in tile_row.iter().enumerate() {
+            for i in 0..tile.size {
+                for j in 0..tile.size {
+                    let pixel = tile.get((i, j));
+                    let coords = (i + (col_ix * tile.size), j + (row_ix * tile.size));
+                    merged.set(coords, *pixel);
+                }
             }
-            merged.push(next_pixel_row);
         }
     }
 
     merged
 }
-
-// fn pixels_to_string(pixels: Vec<Vec<Pixel>>) -> String {
-//     let rows: Vec<String> = pixels
-//         .into_iter()
-//         .map(|row| row.into_iter().map(|pixel| pixel.to_char()).collect())
-//         .collect();
-
-//     rows.join("\n")
-// }
 
 #[cfg(test)]
 mod tests {
@@ -645,7 +773,7 @@ mod tests {
 #...
 #...",
         );
-        assert_eq!(tile.size, 4);
+        assert_eq!(tile.contents.size, 4);
 
         let expected = parser.parse(
             "Tile 1:
@@ -654,10 +782,10 @@ mod tests {
 #...
 ####",
         );
-        assert_eq!(expected.size, 4);
+        assert_eq!(expected.contents.size, 4);
 
-        let rotated = tile.rotate_anticlockwise(1);
-        assert_eq!(rotated, expected);
+        let rotated = tile.contents.rotate_anticlockwise(1);
+        assert_eq!(rotated, expected.contents);
     }
 
     #[test]
@@ -671,7 +799,7 @@ mod tests {
 #...
 #...",
         );
-        assert_eq!(tile.size, 4);
+        assert_eq!(tile.contents.size, 4);
 
         let expected = parser.parse(
             "Tile 1:
@@ -680,9 +808,9 @@ mod tests {
 #...
 ####",
         );
-        assert_eq!(expected.size, 4);
+        assert_eq!(expected.contents.size, 4);
 
-        let flipped = flip_vertical(&tile.contents, tile.size);
+        let flipped = tile.contents.flip_vertical();
         assert_eq!(flipped, expected.contents);
     }
 
@@ -697,7 +825,7 @@ mod tests {
 #...
 #...",
         );
-        assert_eq!(tile.size, 4);
+        assert_eq!(tile.contents.size, 4);
 
         let expected = parser.parse(
             "Tile 1:
@@ -706,9 +834,37 @@ mod tests {
 ...#
 ...#",
         );
-        assert_eq!(expected.size, 4);
+        assert_eq!(expected.contents.size, 4);
 
-        let flipped = flip_horizontal(&tile.contents, tile.size);
+        let flipped = tile.contents.flip_horizontal();
         assert_eq!(flipped, expected.contents);
+    }
+
+    #[test]
+    fn test_strip_and_merge() {
+        let parser = TileParser::new();
+
+        let tile = parser.parse(
+            "Tile 1:
+####
+##..
+#.#.
+#...",
+        );
+
+        let tiles = vec![vec![tile; 3]; 3];
+        let result = strip_edges_and_merge(tiles);
+        println!("result:\n{}", result.to_string());
+
+        let expected: Grid<Pixel> = "#.#.#.
+.#.#.#
+#.#.#.
+.#.#.#
+#.#.#.
+.#.#.#"
+            .split('\n')
+            .collect();
+
+        assert_eq!(result, expected);
     }
 }

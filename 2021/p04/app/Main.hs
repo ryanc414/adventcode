@@ -12,6 +12,8 @@ main = do
     let game = parseInput contents
     let winningScore = getWinningScore game
     print winningScore
+    let losingScore = getLosingScore game
+    print losingScore
 
 data Game = Game { numbers :: [Int], boards :: [Board] } deriving Show
 
@@ -45,6 +47,15 @@ getWinningScore game =
         Just board -> calculateBoardScore board (head (numbers game))
         Nothing -> getWinningScore newGame
 
+getLosingScore :: Game -> Int
+getLosingScore game =
+    let newGame = incrementGameState game
+    in let (winningBoards, losingBoards) = splitWinnersLosers (boards newGame)
+    in if null losingBoards then
+        let [finalWinner] = winningBoards
+        in calculateBoardScore finalWinner (head (numbers game))
+        else getLosingScore (Game (numbers newGame) losingBoards)
+
 incrementGameState :: Game -> Game
 incrementGameState game =
     let (n:ns) = numbers game
@@ -70,24 +81,28 @@ findWinningBoard :: [Board] -> Maybe Board
 findWinningBoard [] = Nothing
 findWinningBoard (b:bs) = if isWinningBoard b then Just b else findWinningBoard bs
 
+splitWinnersLosers :: [Board] -> ([Board], [Board])
+splitWinnersLosers boards =
+    let results = map (\b -> (b, isWinningBoard b)) boards
+    in
+        let winners = map (\(b, _) -> b) (filter (\(b, won) -> won) results)
+            losers = map (\(b, _) -> b) (filter (\(b, won) -> not won) results)
+        in (winners, losers)
+
 isWinningBoard :: Board -> Bool
 isWinningBoard board = (anyRowMarked board) || (anyColMarked board)
 
 anyRowMarked :: Board -> Bool
-anyRowMarked (Board []) = False
-anyRowMarked (Board (row:rows)) = if all isMarked row then True else anyRowMarked (Board rows)
+anyRowMarked (Board rows) = any (all isMarked) rows
 
 isMarked :: BoardNumber -> Bool
 isMarked (Marked _) = True
 isMarked (Unmarked _) = False
 
-
 anyColMarked :: Board -> Bool
 anyColMarked (Board rows) =
-    if any null rows then False else
-        let (col,rest) = unzip $ map (\row -> let Just elems = uncons row in elems) rows
-        in if all isMarked col then True else anyColMarked (Board rest)
-
+    let transposed = transpose rows
+    in anyRowMarked (Board transposed)
 
 calculateBoardScore :: Board -> Int -> Int
 calculateBoardScore board justCalled =

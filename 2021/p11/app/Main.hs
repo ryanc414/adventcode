@@ -16,6 +16,8 @@ main = do
     let energyLevels = parseInput contents
     let count = countFlashesAfterSteps 100 energyLevels
     print count
+    let step = findStepAllFlash energyLevels
+    print step
 
 parseInput :: String -> [[Int]]
 parseInput = map (map digitToInt) . lines
@@ -27,9 +29,20 @@ showEnergies energyLevels =
 countFlashesAfterSteps :: Int -> [[Int]] -> Int
 countFlashesAfterSteps 0 energyLevels = 0
 countFlashesAfterSteps n energyLevels =
+    let (newEnergyLevels, flashCount) = stepEnergies energyLevels
+    in flashCount + (countFlashesAfterSteps (n - 1) newEnergyLevels)
+
+stepEnergies :: [[Int]] -> ([[Int]], Int)
+stepEnergies energyLevels =
     let incremented = map (map (+ 1)) energyLevels
-    in let (flashed, flashCount) = processFlashes incremented
-    in flashCount + (countFlashesAfterSteps (n - 1) flashed)
+    in processFlashes incremented
+
+findStepAllFlash :: [[Int]] -> Int
+findStepAllFlash energyLevels =
+    let (newEnergyLevels, flashCount) = stepEnergies energyLevels
+        numOctopuses = (length energyLevels) * (length (head energyLevels))
+    in if flashCount == numOctopuses then 1
+    else 1 + (findStepAllFlash newEnergyLevels)
 
 processFlashes :: [[Int]] -> ([[Int]], Int)
 processFlashes energyLevels =

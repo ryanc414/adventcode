@@ -8,8 +8,11 @@ main = do
     [filename] <- getArgs
     contents <- readFile filename
     let bits = parseHexBits contents
-    let versionSum = sumVersionNums bits
-    print versionSum
+    let (pkt, _) = parsePacket bits
+    let sum = sumVersions pkt
+    print sum
+    let val = evaluatePkt pkt
+    print val
 
 parseHexBits :: String -> [Bool]
 parseHexBits = concat . map parseHexChar
@@ -40,56 +43,95 @@ parseBit :: Char -> Bool
 parseBit '0' = False
 parseBit '1' = True
 
-sumVersionNums :: [Bool] -> Int
-sumVersionNums bits =
-    let (version, _) = parsePacket bits
-    in version
+data Packet = Literal { version :: Int, value :: Int } |
+              Operator { version :: Int, operator :: Op, subpackets :: [Packet] } deriving Show
+data Op = Sum | Product | Minimum | Maximum | GreaterThan | LessThan | EqualTo deriving (Show,Enum)
 
-parsePacket :: [Bool] -> (Int, [Bool])
+sumVersions :: Packet -> Int
+sumVersions (Literal { version=vers }) = vers
+sumVersions (Operator { version=vers, subpackets=subPkts }) =
+    foldr ((+) . sumVersions) vers subPkts
+
+evaluatePkt :: Packet -> Int
+evaluatePkt (Literal { value=val }) = val
+evaluatePkt (Operator { operator=op, subpackets=subpkts }) =
+    let subPktVals = map evaluatePkt subpkts
+    in case op
+    of Sum -> foldr (+) 0 subPktVals
+       Product -> foldr (*) 1 subPktVals
+       Minimum -> minimum subPktVals
+       Maximum -> maximum subPktVals
+       GreaterThan -> let [a, b] = subPktVals
+                      in if a > b then 1 else 0
+       LessThan -> let [a, b] = subPktVals
+                   in if a < b then 1 else 0
+       EqualTo -> let [a, b] = subPktVals
+                  in if a == b then 1 else 0
+
+parsePacket :: [Bool] -> (Packet, [Bool])
 parsePacket bits =
     let (versionBits, rest) = splitAt 3 bits
     in let (typeBits, rest2) = splitAt 3 rest
-    in let version = bitsToInt versionBits
-    in let (restVers, remainderBits) = if (bitsToInt typeBits) == 4
-           then (0, parseLiteralPkt rest2)
-           else parseOperatorPkt rest2
-    in (version + restVers, remainderBits)
+    in let vers = bitsToInt versionBits
+           typeNum = bitsToInt typeBits
+    in if typeNum == 4
+    then parseLiteralPkt vers rest2
+    else parseOperatorPkt rest2 vers typeNum
 
 bitsToInt :: [Bool] -> Int
 bitsToInt [] = 0
 bitsToInt (x:xs) = let rest = (bitsToInt xs)
     in if x then (2 ^ (length xs)) + rest else rest
 
-parseLiteralPkt :: [Bool] -> [Bool]
-parseLiteralPkt (x:xs) =
-    if x then parseLiteralPkt (drop 4 xs) else (drop 4 xs)
+parseLiteralPkt :: Int -> [Bool] -> (Packet, [Bool])
+parseLiteralPkt vers bits =
+    let (literalBits, restBits) = getLiteralBits bits
+    in (Literal {version=vers, value=(bitsToInt literalBits)}, restBits)
 
-parseOperatorPkt :: [Bool] -> (Int, [Bool])
+getLiteralBits :: [Bool] -> ([Bool], [Bool])
+getLiteralBits (x:xs) =
+    let (nextBits, rest) = splitAt 4 xs
+    in let (restLiteral, restBits) = if x then getLiteralBits rest else ([], rest)
+    in (nextBits ++ restLiteral, restBits)
+
+parseOperatorPkt :: [Bool] -> Int -> Int -> (Packet, [Bool])
 parseOperatorPkt (x:xs) =
     if x then parseOpPkt1 xs else parseOpPkt0 xs
 
-parseOpPkt0 :: [Bool] -> (Int, [Bool])
-parseOpPkt0 bits =
+parseOpPkt0 :: [Bool] -> Int -> Int -> (Packet, [Bool])
+parseOpPkt0 bits vers typeNum =
     let (lengthBits, rest) = splitAt 15 bits
-    in parseSubPktsByLen (bitsToInt lengthBits) rest
+    in let (subPkts, restBits) = parseSubPktsByLen (bitsToInt lengthBits) rest
+    in (Operator { version=vers, operator=(parseOperator typeNum), subpackets=subPkts}, restBits)
 
-parseSubPktsByLen :: Int -> [Bool]  -> (Int, [Bool])
-parseSubPktsByLen 0 bits = (0, bits)
+parseOperator :: Int -> Op
+parseOperator 0 = Sum
+parseOperator 1 = Product
+parseOperator 2 = Minimum
+parseOperator 3 = Maximum
+parseOperator 5 = GreaterThan
+parseOperator 6 = LessThan
+parseOperator 7 = EqualTo
+parseOperator n = error $ show n
+
+parseSubPktsByLen :: Int -> [Bool] -> ([Packet], [Bool])
+parseSubPktsByLen 0 bits = ([], bits)
 parseSubPktsByLen len bits =
-    let (version, rest) = parsePacket bits
+    let (pkt, rest) = parsePacket bits
     in let newLen = len - ((length bits) - (length rest))
-    in let (restVersion, remainderBits) = parseSubPktsByLen newLen rest
-    in (version + restVersion, remainderBits)
+    in let (restPkts, remainderBits) = parseSubPktsByLen newLen rest
+    in ([pkt] ++ restPkts, remainderBits)
 
-parseOpPkt1 :: [Bool] -> (Int, [Bool])
-parseOpPkt1 bits =
+parseOpPkt1 :: [Bool] -> Int -> Int -> (Packet, [Bool])
+parseOpPkt1 bits vers typeNum =
     let (numBits, rest) = splitAt 11 bits
-    in parseSubPktsByNum (bitsToInt numBits) rest
+    in let (subPkts, restBits) = parseSubPktsByNum (bitsToInt numBits) rest
+    in (Operator { version=vers, operator=(parseOperator typeNum), subpackets=subPkts }, restBits)
 
-parseSubPktsByNum :: Int -> [Bool] -> (Int, [Bool])
-parseSubPktsByNum 0 bits = (0, bits)
+parseSubPktsByNum :: Int -> [Bool] -> ([Packet], [Bool])
+parseSubPktsByNum 0 bits = ([], bits)
 parseSubPktsByNum n bits =
-    let (version, rest) = parsePacket bits
-    in let (restVersion, remainderBits) = parseSubPktsByNum (n - 1) rest
-    in (version + restVersion, remainderBits)
+    let (pkt, rest) = parsePacket bits
+    in let (restPkts, remainderBits) = parseSubPktsByNum (n - 1) rest
+    in ([pkt] ++ restPkts, remainderBits)
 

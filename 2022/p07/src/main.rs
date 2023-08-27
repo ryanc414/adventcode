@@ -5,9 +5,14 @@ use std::fs;
 fn main() -> Result<(), String> {
     let filename = parse_args();
     let input = load_input(&filename)?;
+    let commands = parse_commands(&input)?;
+    let file_tree = build_file_tree(&commands);
 
-    let sum = sum_directories(&input)?;
+    let sum = sum_file_tree(&file_tree);
     println!("sum: {}", sum);
+
+    let size = find_delete_dir(&file_tree).unwrap();
+    println!("size: {}", size);
     Ok(())
 }
 
@@ -23,12 +28,6 @@ fn parse_args() -> String {
 fn load_input(filename: &str) -> Result<Vec<String>, String> {
     let contents = fs::read_to_string(filename).map_err(|e| e.to_string())?;
     Ok(contents.lines().map(|line| line.to_string()).collect())
-}
-
-fn sum_directories(input: &[String]) -> Result<u64, String> {
-    let commands = parse_commands(input)?;
-    let file_tree = build_file_tree(&commands);
-    Ok(sum_file_tree(&file_tree))
 }
 
 #[derive(Debug)]
@@ -255,4 +254,25 @@ fn sum_file_tree(tree: &FileTree) -> u64 {
         .filter(|node| !node.children.is_empty() && node.size <= MAX_NODE_SIZE)
         .map(|node| node.size)
         .sum::<u64>()
+}
+
+const TOTAL_DISK_SIZE: u64 = 70000000;
+const REQUIRED_SIZE: u64 = 30000000;
+
+fn find_delete_dir(tree: &FileTree) -> Option<u64> {
+    let used_size = tree.nodes[0].size;
+    let available_size = TOTAL_DISK_SIZE - used_size;
+    let min_delete_size = REQUIRED_SIZE - available_size;
+
+    let mut nodes: Vec<_> = tree.nodes.iter().filter(|node| !node.children.is_empty()).collect();
+    nodes.sort_by_key(|node| node.size);
+
+    // A binary search would be more efficient but this linear search is fast enough.
+    for node in nodes {
+        if node.size > min_delete_size {
+            return Some(node.size);
+        }
+    }
+
+    None
 }
